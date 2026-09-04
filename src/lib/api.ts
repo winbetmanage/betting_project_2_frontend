@@ -1,5 +1,5 @@
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
-const API_URL = RAW_API_URL.replace(/\/$/, ""); // empty => use Next.js rewrite proxy, otherwise absolute backend URL
+export const API_URL = RAW_API_URL.replace(/\/$/, ""); // empty => use Next.js rewrite proxy, otherwise absolute backend URL
 
 export class ApiError extends Error {
   status: number;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,7 +83,7 @@ export default function UserWalletPage() {
       if (deposit.senderReference) formData.append("senderReference", deposit.senderReference);
       if (proofFile) formData.append("proofImage", proofFile);
 
-      const base = (process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "") || "";
+      const base = API_URL;
       const res = await fetch(`${base}/api/v1/funds/deposit`, {
         method: "POST",
         headers: { Authorization: `Bearer ${t}` },

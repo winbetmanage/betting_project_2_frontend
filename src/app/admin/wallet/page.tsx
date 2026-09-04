@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,7 +118,7 @@ export default function AdminWalletPage() {
     setProofLoading(true);
     const t = getAccessToken() ?? token;
     try {
-      const base = (process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "") || "";
+      const base = API_URL;
       const res = await fetch(`${base}/api/v1/funds/requests/${r.id}/proof`, {
         headers: { Authorization: `Bearer ${t}` },
         cache: "no-store",

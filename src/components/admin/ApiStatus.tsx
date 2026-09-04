@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Activity, WifiOff, Loader2 } from "lucide-react";
-
-const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
-const API_URL = RAW_API_URL.replace(/\/$/, "");
+import { API_URL } from "@/lib/api";
 
 type Status = "checking" | "connected" | "unreachable";
 

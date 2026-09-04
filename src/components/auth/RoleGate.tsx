@@ -12,6 +12,7 @@ import {
   clearSession,
   type Role,
 } from "@/lib/auth";
+import { API_URL } from "@/lib/api";
 
 export type { Role };
 
@@ -31,7 +32,7 @@ async function tryRefreshSession(): Promise<boolean> {
   // If access token not expired, no need
   if (accessToken && !isTokenExpired(accessToken)) return true;
   try {
-    const base = (process.env.NEXT_PUBLIC_API_URL ?? "").trim().replace(/\/$/, "") || "";
+    const base = API_URL;
     const res = await fetch(`${base}/api/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
