@@ -17,6 +17,8 @@ import {
   Activity,
   Flag,
   UserCircle,
+  Smartphone,
+  Gift,
 } from "lucide-react";
 
 import {
@@ -45,8 +47,13 @@ const mainItems = [
 const manageItems = [
   { key: "active-games", title: "Active Games", url: "/admin/games/active", icon: Activity },
   { key: "ended-games", title: "Ended Games", url: "/admin/games/ended", icon: Flag },
-  { key: "users", title: "Users", url: "/admin/users", icon: Users },
   { key: "wallet", title: "Wallet", url: "/admin/wallet", icon: Wallet },
+];
+
+const usersItems = [
+  { key: "users", title: "Users", url: "/admin/users", icon: Users },
+  { key: "devices", title: "Devices Info", url: "/admin/users/devices", icon: Smartphone },
+  { key: "referral-bonus", title: "Referral Bonus", url: "/admin/users/referral-bonus", icon: Gift },
 ];
 
 // Returns which sidebar key is active given a pathname.
@@ -58,6 +65,8 @@ function activeKeyFor(pathname: string): string {
   if (/^\/admin\/games\/[^/]+$/.test(pathname)) return "active-games"; // game detail page
   if (pathname.startsWith("/admin/games")) return "games";
   if (pathname.startsWith("/admin/bets")) return "bets";
+  if (pathname.startsWith("/admin/users/devices")) return "devices";
+  if (pathname.startsWith("/admin/users/referral-bonus")) return "referral-bonus";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/wallet")) return "wallet";
   if (pathname.startsWith("/admin/fetch-games/premier-league-results")) return "premier-league-results";
@@ -148,6 +157,27 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {manageItems.map((item) => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    render={<Link href={item.url} />}
+                    isActive={activeKey === item.key}
+                    tooltip={item.title}
+                    className={dimItemClass(item.key)}
+                  >
+                    <item.icon className="size-4" />
+                    <span className="flex-1 truncate">{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">USER MANAGEMENT</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {usersItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     render={<Link href={item.url} />}

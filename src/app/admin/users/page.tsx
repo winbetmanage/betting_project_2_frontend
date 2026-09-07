@@ -185,12 +185,11 @@ export default function AdminUsersPage() {
       </CardHeader>
       <CardContent className="p-0">
         {loading ? (
-          <div className="space-y-3 p-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded bg-muted" />
-            ))}
+            <div className="grid place-items-center py-14">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
           </div>
-        ) : data.length === 0 ? (
+          ) : data.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">No users in this category</div>
         ) : (
           <div className="overflow-x-auto">

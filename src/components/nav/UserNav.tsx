@@ -54,6 +54,7 @@ export default function UserNav() {
   const links = [
     { href: "/", label: "Home" },
     { href: "/games", label: "Games" },
+    { href: "/my-bets", label: "My Bets" },
     { href: "/wallet", label: "Wallet" },
     { href: "#", label: "News & Updates" },
     { href: "#", label: "Contact" },
@@ -120,7 +121,7 @@ export default function UserNav() {
                     <div className="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold text-white">
                       {user?.email?.[0]?.toUpperCase() ?? "T"}
                     </div>
-                    <span className="hidden text-xs text-white/70 sm:block">${balance !== null ? balance.toFixed(2) : "—"}</span>
+                    <span className="hidden text-xs text-white/70 sm:block">{balance !== null ? `ETB ${balance.toFixed(2)}` : "—"}</span>
                     <ChevronDown className="size-3 text-white/40" />
                   </button>
                 }
@@ -139,7 +140,7 @@ export default function UserNav() {
                 <div className="flex items-center gap-2 px-3 py-2 text-xs">
                   <Wallet className="size-4 text-secondary" />
                   <span className="text-muted-foreground">Balance</span>
-                  <span className="ml-auto font-bold text-foreground">${balance !== null ? balance.toFixed(2) : "—"}</span>
+                  <span className="ml-auto font-bold text-foreground">{balance !== null ? `ETB ${balance.toFixed(2)}` : "—"}</span>
                 </div>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem render={<Link href="/profile" className="flex items-center gap-2 w-full" />} className="cursor-pointer">

@@ -45,10 +45,9 @@ export default function GamesPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-white/5" />
-          ))}
+        <div className="grid place-items-center py-14">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
         </div>
       ) : games.length === 0 ? (
         <div className="py-16 text-center">

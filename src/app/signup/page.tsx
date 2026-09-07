@@ -39,10 +39,35 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [refName, setRefName] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated()) router.replace("/");
+    // Capture referral code from the link (/signup?ref=<code>)
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref && ref.trim()) setRefCode(ref.trim());
   }, [router]);
+
+  useEffect(() => {
+    if (!refCode) {
+      setRefName(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<{ data: { found: boolean; name?: string } }>(`/auth/referral?ref=${encodeURIComponent(refCode)}`)
+      .then((r) => {
+        if (cancelled) return;
+        setRefName(r.data?.found ? r.data.name ?? "A friend" : null);
+      })
+      .catch(() => {
+        if (!cancelled) setRefName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refCode]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -51,7 +76,7 @@ export default function SignupPage() {
     try {
       const res = await api.post<{
         data: { accessToken: string; refreshToken: string; user: AuthUser };
-      }>("/auth/register", { name, email, password });
+      }>("/auth/register", { name, email, password, ...(refCode ? { referralCode: refCode } : {}) });
       setSession(res.data.accessToken, res.data.refreshToken, res.data.user);
       toast.success(`Welcome, ${res.data.user.name ?? res.data.user.email}! Account created.`);
       router.replace("/");
@@ -141,6 +166,18 @@ export default function SignupPage() {
             />
           </div>
         </div>
+
+        {refCode && (
+          <p className="rounded-lg border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-xs text-primary-light">
+            {refName ? (
+              <>
+                You were referred by <span className="font-bold">{refName}</span>.
+              </>
+            ) : (
+              <>Referral code <span className="font-bold">{refCode}</span> wasn&rsquo;t recognized — you can still sign up.</>
+            )}
+          </p>
+        )}
 
         <button
           type="submit"

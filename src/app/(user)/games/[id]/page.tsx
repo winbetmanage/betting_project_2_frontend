@@ -76,9 +76,9 @@ export default function GameDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-40 animate-pulse rounded bg-white/5" />
-        <div className="h-64 animate-pulse rounded-xl bg-white/5" />
+      <div className="grid place-items-center py-20">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
       </div>
     );
   }
@@ -215,7 +215,7 @@ export default function GameDetailPage() {
                 </div>
                 <div className="sm:w-48">
                   <div className="text-xs text-white/50">Potential return</div>
-                  <div className="mt-1 text-lg font-bold text-secondary">${potentialReturn.toFixed(2)}</div>
+                  <div className="mt-1 text-lg font-bold text-secondary">ETB {potentialReturn.toFixed(2)}</div>
                 </div>
                 <button
                   onClick={placeBet}
@@ -232,7 +232,7 @@ export default function GameDetailPage() {
 
       {/* Balance hint */}
       <p className="flex items-center gap-1.5 text-xs text-white/40">
-        <ShieldAlert className="size-3.5" /> Your balance: ${Number(getUser()?.balance ?? 0).toFixed(2)} — responsible gambling.
+        <ShieldAlert className="size-3.5" /> Your balance: ETB {Number(getUser()?.balance ?? 0).toFixed(2)} — responsible gambling.
       </p>
     </div>
   );

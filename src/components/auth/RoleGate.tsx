@@ -8,51 +8,23 @@ import {
   getUserRole,
   isTokenExpired,
   getAccessToken,
-  getRefreshToken,
   clearSession,
   type Role,
 } from "@/lib/auth";
-import { API_URL } from "@/lib/api";
+import { tryRefreshSession, handleRefreshFailure } from "@/lib/sessionRefresh";
 
 export type { Role };
 
 function Loading({ label }: { label: string }) {
   return (
-    <div className="grid min-h-dvh place-items-center bg-brand-dark text-sm text-white/60">
-      {label}
+    <div className="grid min-h-dvh place-items-center bg-brand-dark">
+      <div className="flex flex-col items-center gap-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-12" />
+        {label && <p className="text-sm text-white/60">{label}</p>}
+      </div>
     </div>
   );
-}
-
-async function tryRefreshSession(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  const accessToken = getAccessToken();
-  // If no refresh token, can't refresh
-  if (!refreshToken) return false;
-  // If access token not expired, no need
-  if (accessToken && !isTokenExpired(accessToken)) return true;
-  try {
-    const base = API_URL;
-    const res = await fetch(`${base}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-      cache: "no-store",
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error();
-    const data = (json as { data: { accessToken: string; refreshToken: string; user: unknown } }).data;
-    if (!data?.accessToken) throw new Error();
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("accessToken", data.accessToken);
-      window.localStorage.setItem("refreshToken", data.refreshToken);
-      window.localStorage.setItem("user", JSON.stringify(data.user));
-    }
-    return true;
-  } catch {
-    clearSession();
-    return false;
-  }
 }
 
 export default function RoleGate({
@@ -77,12 +49,12 @@ export default function RoleGate({
         return;
       }
 
-      // If access token expired, try to refresh silently
+      // If access token expired, try to refresh silently (shared single-flight refresh)
       const token = getAccessToken();
       if (isTokenExpired(token)) {
         const ok = await tryRefreshSession();
         if (!ok) {
-          router.replace("/login");
+          handleRefreshFailure();
           return;
         }
       }

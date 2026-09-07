@@ -360,11 +360,10 @@ export default function TransferAccountsPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="space-y-3 p-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 animate-pulse rounded bg-muted" />
-              ))}
-            </div>
+            <div className="grid place-items-center py-14">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
+          </div>
           ) : accounts.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
               <div className="grid size-12 place-items-center rounded-full bg-muted">

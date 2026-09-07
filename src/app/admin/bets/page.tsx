@@ -48,7 +48,10 @@ export default function AdminBetsPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm opacity-60">Loading bets...</p>
+        <div className="grid place-items-center py-14">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
+        </div>
       ) : bets.length === 0 ? (
         <p className="text-sm opacity-60">No bets placed yet.</p>
       ) : (

@@ -147,7 +147,10 @@ export default function AdminGamesPage() {
       <section>
         <h2 className="mb-4 font-semibold">All games</h2>
         {loading ? (
-          <p className="text-sm opacity-60">Loading games...</p>
+          <div className="grid place-items-center py-14">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
+          </div>
         ) : games.length === 0 ? (
           <p className="text-sm opacity-60">No games yet.</p>
         ) : (

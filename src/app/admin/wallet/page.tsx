@@ -173,8 +173,9 @@ export default function AdminWalletPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="space-y-3 p-6">
-              {[1, 2, 3, 4].map((i) => <div key={i} className="h-12 animate-pulse rounded bg-muted" />)}
+            <div className="grid place-items-center py-14">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
             </div>
           ) : requests.length === 0 ? (
             <div className="py-14 text-center text-sm text-muted-foreground">No fund requests found.</div>
@@ -288,7 +289,10 @@ export default function AdminWalletPage() {
           </DialogHeader>
           {selected?.proofImagePath ? (
             proofLoading ? (
-              <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Loading proof...</div>
+              <div className="flex h-64 items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
+              </div>
             ) : proofUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={proofUrl} alt="Proof" className="w-full rounded-lg border border-border bg-muted object-contain" />

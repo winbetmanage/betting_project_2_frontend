@@ -179,11 +179,10 @@ export default function GamesListPage() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="space-y-3 p-6">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-12 animate-pulse rounded bg-muted" />
-              ))}
-            </div>
+            <div className="grid place-items-center py-14">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
+          </div>
           ) : games.length === 0 ? (
             <div className="py-16 text-center">
               <Globe className="mx-auto size-10 text-muted-foreground/30" />

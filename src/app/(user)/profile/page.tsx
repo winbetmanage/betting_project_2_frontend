@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { getAccessToken, getUser, type AuthUser } from "@/lib/auth";
+import { getAccessToken, type AuthUser } from "@/lib/auth";
 import { toast } from "sonner";
-import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity } from "lucide-react";
+import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity, Gift, Copy, Users } from "lucide-react";
 
 type Transaction = {
   id: string;
@@ -23,6 +23,7 @@ const txLabel: Record<string, string> = {
   BET_WON: "Bet won",
   BET_REFUND: "Bet refund",
   ADJUSTMENT: "Adjustment",
+  REFERRAL_BONUS: "Referral bonus",
 };
 
 export default function UserProfilePage() {
@@ -74,9 +75,9 @@ export default function UserProfilePage() {
       </div>
 
       {loading ? (
-        <div className="space-y-4">
-          <div className="h-40 animate-pulse rounded-2xl bg-white/5" />
-          <div className="h-40 animate-pulse rounded-2xl bg-white/5" />
+        <div className="grid place-items-center py-20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
         </div>
       ) : (
         <>
@@ -105,7 +106,7 @@ export default function UserProfilePage() {
               <div className="flex items-center gap-1.5 text-xs text-secondary">
                 <Wallet className="size-4" /> BALANCE
               </div>
-              <div className="mt-1 text-3xl font-bold text-white">${(balance ?? 0).toFixed(2)}</div>
+              <div className="mt-1 text-3xl font-bold text-white">ETB {(balance ?? 0).toFixed(2)}</div>
               <div className="mt-1 text-xs text-white/50">Available for betting</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -119,6 +120,40 @@ export default function UserProfilePage() {
                 <Calendar className="size-4" /> ROLE
               </div>
               <div className="mt-1 text-lg font-semibold">{user?.role || "—"}</div>
+            </div>
+          </div>
+
+          {/* Referral card */}
+          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-primary-light">
+              <Gift className="size-4" /> REFER &amp; EARN
+            </div>
+            <p className="mt-2 text-sm text-white/70">
+              Share your link — when a friend signs up and makes their first deposit of <span className="font-semibold text-white">ETB 100+</span>, you get a <span className="font-semibold text-secondary">ETB 50</span> bonus.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+                <Users className="size-4 shrink-0 text-white/40" />
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/80">
+                  {typeof window !== "undefined" && user?.referralCode
+                    ? `${window.location.origin}/signup?ref=${user.referralCode}`
+                    : user?.referralCode ?? "—"}
+                </span>
+                <button
+                  onClick={() => {
+                    if (!user?.referralCode) return;
+                    const link = `${window.location.origin}/signup?ref=${user.referralCode}`;
+                    navigator.clipboard
+                      .writeText(link)
+                      .then(() => toast.success("Referral link copied!"))
+                      .catch(() => toast.error("Could not copy link"));
+                  }}
+                  disabled={!user?.referralCode}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90 disabled:opacity-40"
+                >
+                  <Copy className="size-3.5" /> Copy
+                </button>
+              </div>
             </div>
           </div>
 
@@ -136,7 +171,7 @@ export default function UserProfilePage() {
             ) : (
               <div className="divide-y divide-white/5">
                 {transactions.slice(0, 10).map((tx) => {
-                  const isIn = ["DEPOSIT", "BET_WON", "BET_REFUND"].includes(tx.type);
+                  const isIn = ["DEPOSIT", "BET_WON", "BET_REFUND", "REFERRAL_BONUS"].includes(tx.type);
                   return (
                     <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
                       <div className="flex items-center gap-2.5">
@@ -152,9 +187,9 @@ export default function UserProfilePage() {
                       </div>
                       <div className="text-right">
                         <div className={`font-bold ${isIn ? "text-secondary" : "text-red-400"}`}>
-                          {isIn ? "+" : "-"}${Number(tx.amount).toFixed(2)}
+                          {isIn ? "+" : "-"}ETB {Number(tx.amount).toFixed(2)}
                         </div>
-                        <div className="text-xs text-white/40">${Number(tx.balanceAfter).toFixed(2)}</div>
+                        <div className="text-xs text-white/40">ETB {Number(tx.balanceAfter).toFixed(2)}</div>
                       </div>
                     </div>
                   );

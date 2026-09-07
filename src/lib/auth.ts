@@ -6,6 +6,7 @@ export type AuthUser = {
   balance: number | string;
   themeMode?: string | null;
   themeColor?: string | null;
+  referralCode?: string | null;
 };
 
 export type Role = AuthUser["role"];

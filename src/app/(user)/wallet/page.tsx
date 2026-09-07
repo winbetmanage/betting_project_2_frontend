@@ -151,15 +151,15 @@ export default function UserWalletPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-5">
           <div className="flex items-center gap-1.5 text-xs text-secondary"><Wallet className="size-4" /> AVAILABLE</div>
-          <div className="mt-1 text-3xl font-bold text-white">${balance.available.toFixed(2)}</div>
+          <div className="mt-1 text-3xl font-bold text-white">ETB {balance.available.toFixed(2)}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="text-xs text-white/50">BALANCE</div>
-          <div className="mt-1 text-2xl font-semibold">${balance.balance.toFixed(2)}</div>
+          <div className="mt-1 text-2xl font-semibold">ETB {balance.balance.toFixed(2)}</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="text-xs text-white/50">HELD (pending withdrawals)</div>
-          <div className="mt-1 text-2xl font-semibold">${balance.heldBalance.toFixed(2)}</div>
+          <div className="mt-1 text-2xl font-semibold">ETB {balance.heldBalance.toFixed(2)}</div>
         </div>
       </div>
 
@@ -250,7 +250,7 @@ export default function UserWalletPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2 font-medium">
                         {r.type === "DEPOSIT" ? <ArrowDownToLine className="size-4 text-secondary" /> : <ArrowUpFromLine className="size-4 text-secondary" />}
-                        {r.type === "DEPOSIT" ? "Deposit" : "Withdrawal"} — <span className="font-bold">${Number(r.amount).toFixed(2)}</span>
+                        {r.type === "DEPOSIT" ? "Deposit" : "Withdrawal"} — <span className="font-bold">ETB {Number(r.amount).toFixed(2)}</span>
                       </div>
                       <Badge className={b.c}>{b.t}</Badge>
                     </div>
