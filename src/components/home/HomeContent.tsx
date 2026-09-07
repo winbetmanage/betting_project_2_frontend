@@ -60,6 +60,35 @@ const leftStaticSports = [
   { label: "LIVE ONLY", icon: Monitor, active: false },
 ];
 
+// Top leagues shown in the left sidebar. Only EPL has games to bet on for now.
+const topLeagues = [
+  { id: "epl", name: "English Premier League", short: "EPL", color: "#38003c", logo: "/assets/genenral_logos/premier-league.svg" },
+  { id: "serie-a", name: "Italian Serie A", short: "SA", color: "#003791", logo: "/assets/genenral_logos/italy_serie-a.svg" },
+  { id: "laliga", name: "Spain LaLiga", short: "LL", color: "#ee8707", logo: "/assets/genenral_logos/la-liga.svg" },
+  { id: "bundesliga", name: "Bundesliga", short: "BL", color: "#d20515", logo: "/assets/genenral_logos/bundesliga.svg" },
+  { id: "ligue-1", name: "Ligue 1", short: "L1", color: "#091c3e", logo: "/assets/genenral_logos/france_ligue-1.svg" },
+];
+
+function LeagueEmpty({ league, onBack }: { league: (typeof topLeagues)[number]; onBack: () => void }) {
+  return (
+    <div className="rounded-xl bg-white p-12 text-center shadow-sm border border-[#e2e8f0]">
+      <span className="mx-auto grid size-16 place-items-center overflow-hidden rounded-full bg-white p-2 shadow-md ring-1 ring-[#e2e8f0]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={league.logo} alt={league.name} className="size-full object-contain" />
+      </span>
+      <p className="mt-4 text-base font-bold text-[#0f172a]">{league.name}</p>
+      <p className="mt-1 text-sm font-semibold text-[#334155]">No games to bet for now</p>
+      <p className="mt-1 text-xs text-[#64748b]">Matches for {league.name} will appear here soon. Check back later.</p>
+      <button
+        onClick={onBack}
+        className="mt-5 rounded-md border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-semibold text-[#0a0f2e] transition hover:bg-[#f8fafc]"
+      >
+        Back to all games
+      </button>
+    </div>
+  );
+}
+
 function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [sports, setSports] = useState<Sport[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -69,6 +98,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [placing, setPlacing] = useState(false);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [activeSport, setActiveSport] = useState<string | null>(null);
+  const [activeLeague, setActiveLeague] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -90,6 +120,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
     const onSportSelect = (e: Event) => {
       const name = (e as CustomEvent).detail as string;
       setActiveSport(name);
+      setActiveLeague(null);
     };
     window.addEventListener("tana:sport-select", onSportSelect);
     return () => window.removeEventListener("tana:sport-select", onSportSelect);
@@ -142,6 +173,34 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 </a>
               ))}
               <div className="my-2 h-px bg-white/10" />
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                Top Leagues
+              </div>
+              {topLeagues.map((lg) => {
+                const active = activeLeague === lg.id;
+                return (
+                  <button
+                    key={lg.id}
+                    onClick={() => {
+                      setActiveLeague(active ? null : lg.id);
+                      setActiveSport(null);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs font-medium transition ${
+                      active ? "bg-white text-[#0a0f2e]" : "text-white/70 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={lg.logo} alt={lg.name} className="size-4 object-contain" />
+                    </span>
+                    <span className="truncate">{lg.name}</span>
+                  </button>
+                );
+              })}
+              <div className="my-2 h-px bg-white/10" />
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                Sports
+              </div>
               {sports.length === 0 && !loading ? (
                 <div className="px-3 py-2 text-xs text-white/30">No sports yet</div>
               ) : (
@@ -151,7 +210,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   return (
                     <button
                       key={sport.id}
-                      onClick={() => setActiveSport(active ? null : sport.name)}
+                      onClick={() => {
+                      setActiveSport(active ? null : sport.name);
+                      setActiveLeague(null);
+                    }}
                       className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs font-medium transition ${
                         active ? "bg-white text-[#0a0f2e]" : "text-white/70 hover:bg-white/5 hover:text-white"
                       }`}
@@ -181,8 +243,33 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       {/* Center Content */}
       <div className="flex-1 min-w-0 bg-[#eef2f7] p-0 sm:p-4">
         <div className="mx-auto max-w-[1100px] space-y-4">
+          {activeLeague && activeLeague !== "epl" ? (
+            <LeagueEmpty
+              league={topLeagues.find((l) => l.id === activeLeague) ?? topLeagues[0]}
+              onBack={() => setActiveLeague(null)}
+            />
+          ) : (
+            <>
           {/* Top Banner - BETLAB style */}
           <PromoSlider />
+
+          {activeLeague === "epl" && (
+            <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-[#e2e8f0]">
+              <div className="flex items-center gap-3">
+                <span className="grid size-8 place-items-center overflow-hidden rounded-full bg-white p-1 shadow-sm ring-1 ring-[#e2e8f0]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={topLeagues[0].logo} alt="English Premier League" className="size-full object-contain" />
+                </span>
+                <div>
+                  <div className="text-sm font-bold text-[#0f172a]">English Premier League</div>
+                  <div className="text-[11px] text-[#64748b]">Upcoming &amp; live games</div>
+                </div>
+              </div>
+              <button onClick={() => setActiveLeague(null)} className="text-xs font-medium text-[#3b82f6] hover:underline">
+                Clear
+              </button>
+            </div>
+          )}
 
           {/* League Tabs - like BWC, BWFWT etc */}
           <div className="rounded-xl bg-white p-2 shadow-sm border border-[#e2e8f0]">
@@ -221,7 +308,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               <p className="mt-3 text-sm font-medium text-[#0f172a]">No games yet</p>
               <p className="text-xs text-[#64748b]">Check back soon for top matches</p>
               {activeSport && (
-                <button onClick={() => setActiveSport(null)} className="mt-3 text-xs text-[#3b82f6] hover:underline">
+                <button onClick={() => { setActiveSport(null); setActiveLeague(null); }} className="mt-3 text-xs text-[#3b82f6] hover:underline">
                   Clear filter
                 </button>
               )}
@@ -341,6 +428,8 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 </div>
               ))}
             </div>
+          )}
+            </>
           )}
 
           {/* Footer - BETLAB style */}

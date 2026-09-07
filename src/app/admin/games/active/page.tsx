@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
-import { Activity, Search, X, Trophy, Clock, Flag, Eye, AlertTriangle } from "lucide-react";
+import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2 } from "lucide-react";
 
 type Game = {
   id: string;
@@ -41,6 +41,9 @@ export default function ActiveGamesPage() {
   const [token, setToken] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState<Game | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -92,6 +95,56 @@ export default function ActiveGamesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
 
+  // Clear selections whenever the visible list changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, limit, search, games]);
+
+  const deletableIds = games.filter((g) => !g.isPublished).map((g) => g.id);
+  const allDeletableSelected = deletableIds.length > 0 && deletableIds.every((id) => selectedIds.has(id));
+  const selectedCount = selectedIds.size;
+
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (allDeletableSelected) {
+        const next = new Set(prev);
+        deletableIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      return new Set([...prev, ...deletableIds]);
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const t = getAccessToken() ?? token;
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const res = await api.post<{ message: string; data: { deleted: number } }>(
+        "/games/bulk-delete",
+        { ids: Array.from(selectedIds) },
+        t
+      );
+      toast.success(res.message ?? `Deleted ${res.data?.deleted ?? selectedIds.size} game(s)`);
+      setConfirmDelete(false);
+      setSelectedIds(new Set());
+      load(page, search, limit);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete games");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleTogglePublish = async () => {
     if (!pendingToggle) return;
     const t = getAccessToken() ?? token;
@@ -141,6 +194,16 @@ export default function ActiveGamesPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {selectedCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="size-4" /> Delete ({selectedCount})
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground hidden sm:inline">Rows</span>
               <Select value={String(limit)} onValueChange={(v) => { setLimit(Number(v)); setPage(1); }}>
                 <SelectTrigger className="w-[90px] h-9">
@@ -174,6 +237,19 @@ export default function ActiveGamesPage() {
                 <Table>
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
+                      <TableHead className="text-white text-xs tracking-widest w-10">
+                        <input
+                          type="checkbox"
+                          checked={allDeletableSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = selectedCount > 0 && !allDeletableSelected;
+                          }}
+                          onChange={toggleSelectAll}
+                          disabled={deletableIds.length === 0}
+                          className="size-4 cursor-pointer accent-white disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Select all deletable games"
+                        />
+                      </TableHead>
                       <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">COMPETITION</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">START</TableHead>
@@ -184,7 +260,26 @@ export default function ActiveGamesPage() {
                   </TableHeader>
                   <TableBody>
                     {games.map((g) => (
-                      <TableRow key={g.id} className="border-border hover:bg-muted/50">
+                      <TableRow key={g.id} className={`border-border hover:bg-muted/50 ${selectedIds.has(g.id) ? "bg-destructive/5" : ""}`}>
+                        <TableCell>
+                          {g.isPublished ? (
+                            <span title="Published games cannot be removed" className="flex justify-center">
+                              <svg className="size-4 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                          ) : (
+                            <div className="flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(g.id)}
+                                onChange={() => toggleRow(g.id)}
+                                className="size-4 cursor-pointer accent-[#0a0f2e]"
+                                aria-label={`Select ${g.homeTeam} vs ${g.awayTeam}`}
+                              />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <TeamLogo name={g.homeTeam} className="size-6" />
@@ -254,6 +349,36 @@ export default function ActiveGamesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="sm:max-w-[440px] bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" /> Delete {selectedCount} game(s)?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently removes the selected games along with their markets, odds and scores. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3 text-xs space-y-1">
+            {games
+              .filter((g) => selectedIds.has(g.id))
+              .map((g) => (
+                <div key={g.id} className="truncate">
+                  {g.homeTeam} vs {g.awayTeam}
+                </div>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!pendingToggle} onOpenChange={(open) => !open && setPendingToggle(null)}>
         <DialogContent className="sm:max-w-[420px] bg-card">
