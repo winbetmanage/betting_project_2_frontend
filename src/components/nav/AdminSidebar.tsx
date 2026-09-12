@@ -19,6 +19,11 @@ import {
   UserCircle,
   Smartphone,
   Gift,
+  AlertTriangle,
+  Layers,
+  Star,
+  ReceiptText,
+  Banknote,
 } from "lucide-react";
 
 import {
@@ -42,6 +47,7 @@ const mainItems = [
   { key: "dashboard", title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { key: "games", title: "Games", url: "/admin/games", icon: Trophy },
   { key: "bets", title: "Bets", url: "/admin/bets", icon: Ticket },
+  { key: "bet-games", title: "Bet Games", url: "/admin/bet-games", icon: ReceiptText },
 ];
 
 const manageItems = [
@@ -54,6 +60,7 @@ const usersItems = [
   { key: "users", title: "Users", url: "/admin/users", icon: Users },
   { key: "devices", title: "Devices Info", url: "/admin/users/devices", icon: Smartphone },
   { key: "referral-bonus", title: "Referral Bonus", url: "/admin/users/referral-bonus", icon: Gift },
+  { key: "withdrawal-requests", title: "Withdrawal Requests", url: "/admin/users/withdrawal-requests", icon: Banknote },
 ];
 
 // Returns which sidebar key is active given a pathname.
@@ -64,16 +71,21 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/games/ended")) return "ended-games";
   if (/^\/admin\/games\/[^/]+$/.test(pathname)) return "active-games"; // game detail page
   if (pathname.startsWith("/admin/games")) return "games";
+  if (pathname.startsWith("/admin/bet-games")) return "bet-games";
   if (pathname.startsWith("/admin/bets")) return "bets";
   if (pathname.startsWith("/admin/users/devices")) return "devices";
   if (pathname.startsWith("/admin/users/referral-bonus")) return "referral-bonus";
+  if (pathname.startsWith("/admin/users/withdrawal-requests")) return "withdrawal-requests";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/wallet")) return "wallet";
+  if (pathname.startsWith("/admin/fetch-games/staged")) return "staged-games";
   if (pathname.startsWith("/admin/fetch-games/premier-league-results")) return "premier-league-results";
   if (pathname.startsWith("/admin/fetch-games/premier-league")) return "premier-league";
+  if (pathname.startsWith("/admin/fetch-games/champions-league")) return "champions-league";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
   if (pathname.startsWith("/admin/settings/theme")) return "theme";
   if (pathname.startsWith("/admin/settings/transfer-accounts")) return "transfer-accounts";
+  if (pathname.startsWith("/admin/sensitive/clear-game-data")) return "clear-game-data";
   if (pathname.startsWith("/admin/profile")) return "profile";
   return "dashboard";
 }
@@ -200,6 +212,17 @@ export function AdminSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/staged" />}
+                  isActive={activeKey === "staged-games"}
+                  tooltip="Staged Games"
+                  className={itemClass("staged-games")}
+                >
+                  <Layers className="size-4" />
+                  <span>Staged Games</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
                   render={<Link href="/admin/fetch-games/premier-league" />}
                   isActive={activeKey === "premier-league"}
                   tooltip="Premier League"
@@ -207,6 +230,17 @@ export function AdminSidebar() {
                 >
                   <Trophy className="size-4" />
                   <span>Premier League</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/champions-league" />}
+                  isActive={activeKey === "champions-league"}
+                  tooltip="UEFA Champions League"
+                  className={itemClass("champions-league")}
+                >
+                  <Star className="size-4" />
+                  <span>UEFA Champions League</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -274,6 +308,29 @@ export function AdminSidebar() {
                   <Settings className="size-4" />
                   <span>General Settings</span>
                   <span className="ml-auto text-[10px] opacity-50 group-data-[collapsible=icon]:hidden">soon</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">SENSITIVE</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/sensitive/clear-game-data" />}
+                  isActive={activeKey === "clear-game-data"}
+                  tooltip="Clear Game Data"
+                  className={
+                    activeKey === "clear-game-data"
+                      ? "bg-destructive text-white hover:bg-destructive hover:text-white shadow-md shadow-destructive/20"
+                      : "text-destructive/90 hover:bg-destructive/10 hover:text-destructive"
+                  }
+                >
+                  <AlertTriangle className="size-4" />
+                  <span>Clear Game Data</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

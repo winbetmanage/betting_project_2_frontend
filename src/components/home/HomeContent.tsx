@@ -46,6 +46,15 @@ type Game = {
   isPublished: boolean;
   markets: Market[];
   competition: { name: string; sport: { name: string } | null } | null;
+  score?: {
+    footballDataMatchId: number | null;
+    homeHT: number | null;
+    awayHT: number | null;
+    homeFT: number | null;
+    awayFT: number | null;
+    winner: string | null;
+    status: string;
+  } | null;
 };
 
 type ResultGame = {
@@ -387,7 +396,16 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       <span className="max-w-full truncate text-center text-xs font-bold text-[#0f172a]">{game.homeTeam}</span>
                     </div>
                     <div className="flex shrink-0 flex-col items-center gap-1 px-1">
-                      {game.status === "LIVE" ? (
+                      {game.score && game.score.homeFT != null && game.score.awayFT != null && (game.status === "LIVE" || game.status === "FINISHED" || game.status === "SUSPENDED") ? (
+                        <>
+                          <span className="rounded-lg bg-[#0a0f2e] px-2.5 py-1 font-mono text-lg font-black tracking-wide text-white shadow-sm">
+                            {Number(game.score.homeFT)}<span className="mx-1 text-white/40">-</span>{Number(game.score.awayFT)}
+                          </span>
+                          <span className={`text-[9px] font-bold uppercase tracking-wider ${game.status === "LIVE" ? "text-[#ef4444]" : "text-[#64748b]"}`}>
+                            {game.status === "LIVE" ? "LIVE" : game.status === "SUSPENDED" ? "Suspended" : "Full time"}
+                          </span>
+                        </>
+                      ) : game.status === "LIVE" ? (
                         <span className="text-sm font-black tracking-widest text-[#ef4444]">VS</span>
                       ) : (
                         <>

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { Badge } from "@/components/ui/badge";
+import { Ticket } from "lucide-react";
 
 type Bet = {
   id: string;
@@ -11,16 +13,23 @@ type Bet = {
   totalOdds: string | number;
   potentialPayout: string | number;
   status: string;
+  payoutStatus?: string;
   placedAt: string;
   user: { id: string; name: string | null; email: string } | null;
 };
 
-const statusColor: Record<string, string> = {
-  PENDING: "bg-yellow-400/15 text-yellow-300",
-  WON: "bg-secondary/15 text-secondary border border-secondary/20",
-  LOST: "bg-red-400/15 text-red-300",
-  VOID: "bg-white/10 text-white/60",
-  CASHED_OUT: "bg-primary/15 text-primary-light border border-primary/20",
+const statusStyle: Record<string, string> = {
+  PENDING: "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400",
+  WON: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
+  LOST: "bg-red-500/15 text-red-600 border-red-500/30 dark:text-red-400",
+  VOID: "bg-muted text-muted-foreground border-border",
+  CASHED_OUT: "bg-primary/10 text-primary border-primary/30",
+};
+
+const payoutStyle: Record<string, string> = {
+  PENDING: "bg-muted text-muted-foreground border-border",
+  SUBMITTED: "bg-sky-500/15 text-sky-600 border-sky-500/30 dark:text-sky-400",
+  PAID: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
 };
 
 export default function AdminBetsPage() {
@@ -42,9 +51,16 @@ export default function AdminBetsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Bets</h1>
-        <p className="mt-1 text-sm text-white/60">Review all bets placed on the platform.</p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <Ticket className="size-6 text-primary" /> Bets
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Review all bets placed on the platform.</p>
+        </div>
+        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+          {bets.length} total
+        </Badge>
       </div>
 
       {loading ? (
@@ -53,27 +69,31 @@ export default function AdminBetsPage() {
           <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
         </div>
       ) : bets.length === 0 ? (
-        <p className="text-sm opacity-60">No bets placed yet.</p>
+        <p className="text-sm text-muted-foreground">No bets placed yet.</p>
       ) : (
         <div className="space-y-2">
           {bets.map((bet) => (
             <div
               key={bet.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm"
             >
-              <div>
-                <div className="font-medium">{bet.user?.email ?? "Unknown user"}</div>
-                <div className="text-xs text-white/50">{new Date(bet.placedAt).toLocaleString()}</div>
+              <div className="min-w-0">
+                <div className="truncate font-medium text-foreground">{bet.user?.email ?? "Unknown user"}</div>
+                <div className="text-xs text-muted-foreground">{new Date(bet.placedAt).toLocaleString()}</div>
               </div>
-              <div className="flex items-center gap-4 text-white/70">
-                <span>{bet.type} bet</span>
-                <span>Stake ${Number(bet.stake).toFixed(2)}</span>
-                <span>Odds {Number(bet.totalOdds).toFixed(2)}</span>
-                <span
-                  className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusColor[bet.status] ?? "bg-white/10 text-white/60"}`}
-                >
+              <div className="flex flex-wrap items-center gap-3 text-foreground">
+                <span className="text-muted-foreground">{bet.type} bet</span>
+                <span>Stake <span className="font-semibold">${Number(bet.stake).toFixed(2)}</span></span>
+                <span>Odds <span className="font-mono">{Number(bet.totalOdds).toFixed(2)}</span></span>
+                <span>Payout <span className="font-semibold">${Number(bet.potentialPayout).toFixed(2)}</span></span>
+                <Badge variant="outline" className={statusStyle[bet.status] ?? "bg-muted text-muted-foreground border-border"}>
                   {bet.status}
-                </span>
+                </Badge>
+                {bet.payoutStatus && (
+                  <Badge variant="outline" className={payoutStyle[bet.payoutStatus] ?? "bg-muted text-muted-foreground border-border"}>
+                    {bet.payoutStatus}
+                  </Badge>
+                )}
               </div>
             </div>
           ))}

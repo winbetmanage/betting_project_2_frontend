@@ -16,7 +16,18 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
-import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2 } from "lucide-react";
+import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { GameApiInfo } from "@/components/admin/GameApiInfo";
+
+type GameScoreLite = {
+  footballDataMatchId: number | null;
+  homeHT: number | null;
+  awayHT: number | null;
+  homeFT: number | null;
+  awayFT: number | null;
+  winner: string | null;
+  status: string;
+};
 
 type Game = {
   id: string;
@@ -28,6 +39,11 @@ type Game = {
   isPublished: boolean;
   competition: { name: string; sport: { name: string } | null } | null;
   specifications?: unknown;
+  score?: GameScoreLite | null;
+  hasOddsApi?: boolean;
+  hasFootballData?: boolean;
+  footballDataMatchId?: number | null;
+  apiSportKey?: string | null;
 };
 
 export default function ActiveGamesPage() {
@@ -44,6 +60,7 @@ export default function ActiveGamesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [apiGame, setApiGame] = useState<Game | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -252,7 +269,9 @@ export default function ActiveGamesPage() {
                       <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">COMPETITION</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">START</TableHead>
+                      <TableHead className="text-center text-white text-xs tracking-widest">SCORE</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
+                      <TableHead className="text-center text-white text-xs tracking-widest">APIS</TableHead>
                       <TableHead className="text-white text-xs tracking-widest">PUBLISHED</TableHead>
                       <TableHead className="text-white text-xs tracking-widest text-right">ACTIONS</TableHead>
                     </TableRow>
@@ -293,10 +312,35 @@ export default function ActiveGamesPage() {
                         </TableCell>
                         <TableCell className="text-sm"><span className="flex items-center gap-1.5"><LeagueLogo league={g.competition?.name} className="size-4" /><span>{g.competition?.name ?? "—"}</span></span> <span className="text-xs text-muted-foreground">({g.competition?.sport?.name ?? "—"})</span></TableCell>
                         <TableCell className="text-xs font-mono">{new Date(g.startTime).toLocaleString()}</TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const s = g.score;
+                            const show = s && (g.status === "LIVE" || g.status === "FINISHED" || g.status === "SUSPENDED") && s.homeFT != null && s.awayFT != null;
+                            return show ? (
+                              <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-bold ${g.status === "LIVE" ? "bg-secondary/15 text-secondary" : "bg-muted text-foreground"}`}>
+                                {g.status === "LIVE" && <span className="size-1.5 rounded-full bg-[#ef4444] animate-pulse" />}
+                                {s!.homeFT} - {s!.awayFT}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50">—</span>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell>
                           <Badge className={g.status === "LIVE" ? "bg-secondary text-white animate-pulse" : g.status === "SUSPENDED" ? "bg-amber-500 text-white" : "bg-primary/15 text-primary border-primary/20"}>
                             {g.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => setApiGame(g)}
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-muted/60"
+                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} — click for details`}
+                          >
+                            {g.hasOddsApi ? <CheckCircle2 className="size-4 text-secondary" /> : <XCircle className="size-4 text-muted-foreground/40" />}
+                            {g.hasFootballData ? <CheckCircle2 className="size-4 text-emerald-500" /> : <XCircle className="size-4 text-muted-foreground/40" />}
+                          </button>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -401,6 +445,18 @@ export default function ActiveGamesPage() {
               {toggling ? "Saving..." : pendingToggle?.isPublished ? "Unpublish" : "Publish"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!apiGame} onOpenChange={(open) => !open && setApiGame(null)}>
+        <DialogContent className="sm:max-w-[600px] bg-card border-white/10 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="size-5 text-primary" /> API Data
+              <span className="text-sm font-normal text-muted-foreground">— {apiGame?.homeTeam} vs {apiGame?.awayTeam}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">Data from both external sources for this game. “Fetch all-market odds” pulls every market from The Odds API and saves it to this game&apos;s JSON file.</DialogDescription>
+          </DialogHeader>
+          {apiGame && <GameApiInfo gameId={apiGame.id} showFetch onFetched={() => load(page, search, limit)} />}
         </DialogContent>
       </Dialog>
     </div>

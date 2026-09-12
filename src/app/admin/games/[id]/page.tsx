@@ -19,6 +19,7 @@ import { ArrowLeft, Trophy, Clock, Calendar, Hash, Globe, Building, Check, X, Ac
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
+import { GameApiInfo } from "@/components/admin/GameApiInfo";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
 type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
@@ -33,6 +34,15 @@ type Game = {
   competition: { id: string; name: string; country: string | null; sport: { id: string; name: string; slug: string; gameType: string } | null } | null;
   specifications?: Record<string, unknown> | null;
   markets: Market[];
+  score?: {
+    footballDataMatchId: number | null;
+    homeScoreHT: number;
+    awayScoreHT: number;
+    homeScoreFT: number | null;
+    awayScoreFT: number | null;
+    winner: string | null;
+    status: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -314,7 +324,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
     return (
       <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
         <CardContent className="py-6 text-center text-sm text-amber-800 dark:text-amber-200">
-          This game has no <span className="font-mono">externalEventId</span> — cannot fetch bookmaker odds. Create the game via <span className="font-mono">FetchEplEvents</span> to get an external id.
+          This game has no <span className="font-mono">externalEventId</span> — cannot fetch bookmaker odds. Create the game via the Premier League / Champions League fetch flow to get an external id.
         </CardContent>
       </Card>
     );
@@ -330,7 +340,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
             <CardTitle className="flex items-center gap-2">
               <Download className="size-5 text-primary" /> Fetch Available Markets
             </CardTitle>
-            <CardDescription>All market types from FetchEplEventAllMarkets — grouped by market → bookmaker.</CardDescription>
+            <CardDescription>All market types via getAllMarketsOddsUrl — grouped by market → bookmaker.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => setAutoFillOpen(true)} disabled={autoFilling || groups.length === 0} variant="outline" className="border-secondary/30 text-secondary hover:bg-secondary/10" title="Select all markets, pick first bookmaker, and record all at once">
@@ -567,6 +577,11 @@ export default function GameDetailsPage() {
     }
   };
 
+  const reloadGame = () => {
+    const token = getAccessToken();
+    api.get<{ data: Game }>(`/games/${id}`, token).then((res) => setGame(res.data)).catch(() => {});
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -631,6 +646,24 @@ export default function GameDetailsPage() {
               <TeamLogo name={game.awayTeam} className="size-8 rounded-full bg-white/15" />
             </span>
           </h1>
+          {(game.status === "LIVE" || game.status === "FINISHED") && game.score && game.score.homeScoreFT != null && game.score.awayScoreFT != null && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-3 rounded-xl bg-white/15 px-4 py-2 shadow-sm">
+                {game.status === "LIVE" && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#fecaca]">
+                    <span className="size-2 rounded-full bg-[#ef4444] animate-pulse" /> Live
+                  </span>
+                )}
+                <span className="font-mono text-3xl font-black text-white">
+                  {game.score.homeScoreFT}<span className="mx-2 text-white/50">-</span>{game.score.awayScoreFT}
+                </span>
+                {game.score.homeScoreHT != null && game.score.awayScoreHT != null && (
+                  <span className="text-xs text-white/60">HT {game.score.homeScoreHT}-{game.score.awayScoreHT}</span>
+                )}
+              </div>
+              <span className="text-xs uppercase tracking-wider text-white/60">{game.status === "LIVE" ? "In play" : "Full time"}</span>
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/80">
             <span className="flex items-center gap-1">
               <Calendar className="size-4" /> {new Date(game.startTime).toLocaleString()}
@@ -756,6 +789,18 @@ export default function GameDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="size-5 text-primary" /> External APIs
+          </CardTitle>
+          <CardDescription>The Odds API and football-data.org data for this game. Fetch all-market odds saves to this game&apos;s JSON file.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GameApiInfo gameId={game.id} showFetch onFetched={reloadGame} />
+        </CardContent>
+      </Card>
 
       <Card className="border-border bg-card shadow-sm">
         <CardHeader>
