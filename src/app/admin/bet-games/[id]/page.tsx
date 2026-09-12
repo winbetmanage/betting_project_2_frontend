@@ -33,7 +33,11 @@ import {
   ShieldCheck,
   AlertTriangle,
   Calculator,
+  ChevronDown,
+  Activity,
+  Eye,
 } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
@@ -54,6 +58,14 @@ type SettleBet = {
   user: { id: string; email: string; name: string | null } | null;
   legs: Leg[];
 };
+type SettlementMarket = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  parameters: { marketKey?: string; line?: number | null } | null;
+  selections: { id: string; name: string; odds: number; isWinning: boolean | null; provisional: boolean | null }[];
+};
 type Settlement = {
   game: {
     id: string;
@@ -70,8 +82,16 @@ type Settlement = {
   settleableMarkets: string[];
   manualMarkets: string[];
   bets: SettleBet[];
+  markets: SettlementMarket[];
   totals: { totalStaked: number; projectedPayout: number; paidOut: number; profit: number };
   counts: { total: number; pending: number; won: number; lost: number; void: number };
+};
+type FootballDetails = {
+  game: { id: string; homeTeam: string; awayTeam: string; status: string };
+  matchId: number | null;
+  fetched: boolean;
+  match: { status?: string; score?: { fullTime?: { home: number | null; away: number | null }; halfTime?: { home: number | null; away: number | null }; winner?: string | null } } | null;
+  storedScore: { footballDataMatchId: number; winner: string | null; duration: string; homeScoreHT: number; awayScoreHT: number; homeScoreFT: number; awayScoreFT: number; status: string; fetchedAt: string } | null;
 };
 
 const betStatusStyle: Record<string, string> = {
@@ -100,6 +120,10 @@ export default function BetGameSettlementPage() {
   const [settling, setSettling] = useState(false);
   const [marking, setMarking] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [details, setDetails] = useState<FootballDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [settlingBetId, setSettlingBetId] = useState<string | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -171,6 +195,34 @@ export default function BetGameSettlementPage() {
     }
   };
 
+  const toggleDetails = async (open: boolean) => {
+    setDetailsOpen(open);
+    if (open && !details && !detailsLoading) {
+      setDetailsLoading(true);
+      try {
+        const res = await api.get<{ data: FootballDetails }>(`/games/${id}/football-details`, getAccessToken() ?? token);
+        setDetails(res.data);
+      } catch (e) {
+        toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed to load football details");
+      } finally {
+        setDetailsLoading(false);
+      }
+    }
+  };
+
+  const handleSettleSingle = async (betId: string) => {
+    setSettlingBetId(betId);
+    try {
+      const res = await api.post<{ message: string; data: Settlement }>(`/games/${id}/bets/${betId}/settle`, {}, getAccessToken() ?? token);
+      toast.success(res.message || "Bet settled");
+      setData(res.data);
+    } catch (e) {
+      toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Settle failed");
+    } finally {
+      setSettlingBetId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="grid place-items-center py-20">
@@ -216,9 +268,11 @@ export default function BetGameSettlementPage() {
             <LeagueLogo league={g.competition?.name} className="size-4" /> {g.competition?.name ?? "—"}
           </Badge>
           <Badge className="bg-white/15 text-white border-white/20">{g.status}</Badge>
-          {data.result.finished && (
+          {data.result.finished ? (
             <Badge className="bg-white text-emerald-600 border-white/20"><CheckCircle2 className="mr-1 size-3" /> Result available</Badge>
-          )}
+          ) : data.result.homeFT != null && data.result.awayFT != null ? (
+            <Badge className="bg-amber-400 text-amber-900 border-white/20"><Activity className="mr-1 size-3" /> Live {data.result.homeFT}-{data.result.awayFT}</Badge>
+          ) : null}
         </div>
         <h1 className="mt-3 flex flex-wrap items-center gap-3 text-2xl font-bold tracking-tight">
           <span className="flex items-center gap-2"><TeamLogo name={g.homeTeam} className="size-8 rounded-full bg-white/15" />{g.homeTeam}</span>
@@ -227,23 +281,24 @@ export default function BetGameSettlementPage() {
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/80">
           <span className="flex items-center gap-1"><Clock className="size-4" /> {new Date(g.startTime).toLocaleString()}</span>
-          {data.result.finished && (
-            <span className="flex items-center gap-2 rounded-lg bg-white/15 px-2.5 py-1 font-mono">
-              <Trophy className="size-4" /> {data.result.homeFT} - {data.result.awayFT}
+          {data.result.homeFT != null && data.result.awayFT != null && (
+            <span className={`flex items-center gap-2 rounded-lg px-2.5 py-1 font-mono ${data.result.finished ? "bg-white/15" : "bg-amber-400 text-amber-900"}`}>
+              {data.result.finished ? <Trophy className="size-4" /> : <Activity className="size-4" />} {data.result.homeFT} - {data.result.awayFT}
               {data.result.winner && <span className="text-xs opacity-80">({data.result.winner})</span>}
+              {!data.result.finished && <span className="text-xs">LIVE</span>}
             </span>
           )}
         </div>
       </div>
 
-      {/* Game score (shown when the match is finished) */}
-      {data.result.finished && (
+      {/* Game score — show for finished OR live (when a score is available) */}
+      {data.result.homeFT != null && data.result.awayFT != null && (
         <Card className="border-emerald-500/30 bg-card shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400"><Trophy className="size-5" /> Game Score</CardTitle>
+              <CardTitle className={`flex items-center gap-2 ${data.result.finished ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>{data.result.finished ? <Trophy className="size-5" /> : <Activity className="size-5" />} {data.result.finished ? "Final Score" : "Live Score"}</CardTitle>
               <CardDescription>
-                Final result • source: <span className="font-mono">{data.result.source}</span> • match status: <span className="font-mono">{data.result.matchStatus}</span>
+                {data.result.finished ? "Final result" : "Active result"} • source: <span className="font-mono">{data.result.source}</span> • match status: <span className="font-mono">{data.result.matchStatus}</span>
               </CardDescription>
             </div>
             <Button size="sm" variant="outline" className="gap-1.5 border-primary/20 text-primary hover:bg-primary/10" disabled={calculating} onClick={recalculate}>
@@ -342,6 +397,116 @@ export default function BetGameSettlementPage() {
         </CardContent>
       </Card>
 
+      {/* Football details — accordion, contracted by default */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="pt-0">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="details" className="border-0">
+              <AccordionTrigger
+                className="py-3 text-sm font-medium"
+                onClick={() => {
+                  const willOpen = !detailsOpen;
+                  toggleDetails(willOpen);
+                }}
+              >
+                <span className="flex items-center gap-2"><Eye className="size-4 text-primary" /> Show details — football-data & markets breakdown</span>
+              </AccordionTrigger>
+              <AccordionContent>
+                {detailsLoading ? (
+                  <div className="grid place-items-center py-8"><img src={SPINNER} alt="Loading" className="size-8" /></div>
+                ) : !details ? (
+                  <div className="py-4 text-sm text-muted-foreground">Press Show details to fetch live football-data.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Score snapshot */}
+                    {(() => {
+                      const isNotStarted = !data.result.finished && data.result.homeFT == null && data.result.awayFT == null && (data.result.matchStatus === "SCHEDULED" || data.result.matchStatus === "TIMED" || details.match?.status === "TIMED" || details.match?.status === "SCHEDULED");
+                      if (isNotStarted) return <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">Not started yet — no goals registered.</div>;
+                      const htHome = data.result.homeHT ?? details.storedScore?.homeScoreHT ?? details.match?.score?.halfTime?.home ?? null;
+                      const htAway = data.result.awayHT ?? details.storedScore?.awayScoreHT ?? details.match?.score?.halfTime?.away ?? null;
+                      const ftHome = data.result.homeFT ?? details.storedScore?.homeScoreFT ?? details.match?.score?.fullTime?.home ?? null;
+                      const ftAway = data.result.awayFT ?? details.storedScore?.awayScoreFT ?? details.match?.score?.fullTime?.away ?? null;
+                      const status = details.match?.status ?? details.storedScore?.status ?? data.result.matchStatus;
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-border p-3">
+                              <div className="text-xs text-muted-foreground">Half-time</div>
+                              <div className="mt-1 font-mono text-lg font-bold">{htHome != null && htAway != null ? `${htHome} — ${htAway}` : "—"}</div>
+                            </div>
+                            <div className="rounded-lg border border-border p-3">
+                              <div className="text-xs text-muted-foreground">Full-time {data.result.finished ? "(final)" : "(live)"}</div>
+                              <div className="mt-1 font-mono text-lg font-bold">{ftHome != null && ftAway != null ? `${ftHome} — ${ftAway}` : "—"}</div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">Match status: <span className="font-mono text-foreground">{status}</span>{details.fetched ? " • live fetch" : " • stored"} • source: <span className="font-mono">{data.result.source}</span></div>
+                        </>
+                      );
+                    })()}
+
+                    {/* Markets breakdown */}
+                    <div>
+                      <h4 className="mb-2 text-sm font-semibold">Betting markets — provisional {data.result.finished ? "final" : "live"} result</h4>
+                      {data.markets.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No markets added for this game.</div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted">
+                              <tr>
+                                <th className="p-2 text-left text-xs">Market</th>
+                                <th className="p-2 text-left text-xs">Point</th>
+                                <th className="p-2 text-left text-xs">Selections</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data.markets.map((m) => (
+                                <tr key={m.id} className="border-t border-border">
+                                  <td className="p-2"><div className="font-medium">{m.name}</div><div className="text-xs text-muted-foreground">{m.type.replace(/_/g, " ")} • {m.status}</div></td>
+                                  <td className="p-2 font-mono text-xs">{m.parameters?.line != null ? String(m.parameters.line) : "—"}</td>
+                                  <td className="p-2">
+                                    <div className="space-y-1">
+                                      {m.selections.map((s) => {
+                                        const isPush = s.provisional === null && m.type === "HANDICAP" && s.provisional !== undefined ? false : false;
+                                        // provisional: true=winning, false=losing, null=push/void or undecided
+                                        const hasScore = data.result.homeFT != null && data.result.awayFT != null;
+                                        let badge: React.ReactNode;
+                                        let cls = "border-border text-muted-foreground";
+                                        if (!hasScore) { badge = "—"; cls="border-border text-muted-foreground"; }
+                                        else if (s.provisional === true) { badge = "Winning"; cls="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"; }
+                                        else if (s.provisional === false) { badge = "Losing"; cls="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"; }
+                                        else if (s.provisional === null) {
+                                          // Could be push or not yet decidable
+                                          const line = m.parameters?.line;
+                                          const isIntPush = line != null && Number.isInteger(line) && data.result.homeFT != null;
+                                          badge = isIntPush ? "Push" : "—";
+                                          cls = isIntPush ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-border text-muted-foreground";
+                                        }
+                                        return (
+                                          <div key={s.id} className="flex items-center gap-2 text-xs">
+                                            <span className="min-w-0 flex-1">{s.name} <span className="font-mono text-muted-foreground">@ {s.odds.toFixed(2)}</span></span>
+                                            <Badge variant="outline" className={`text-[10px] ${cls}`}>{badge}</Badge>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      <div className="mt-2 text-xs text-muted-foreground">Provisional status is based on current {data.result.finished ? "final" : "live"} score only — not yet settled unless the game is finished and you press Settle.</div>
+                    </div>
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+
       {/* Winners */}
       {winners.length > 0 && (
         <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
@@ -395,6 +560,7 @@ export default function BetGameSettlementPage() {
                     <TableHead className="text-white text-xs tracking-widest">ODDS</TableHead>
                     <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
                     <TableHead className="text-right text-white text-xs tracking-widest">PAYOUT</TableHead>
+                    <TableHead className="text-right text-white text-xs tracking-widest">ACTIONS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -436,6 +602,26 @@ export default function BetGameSettlementPage() {
                       <TableCell className="text-right">
                         <div className="text-sm font-semibold">{b.status === "WON" ? `ETB ${money(b.potentialPayout)}` : b.status === "PENDING" ? <span className="text-muted-foreground">—</span> : b.status === "VOID" ? `ETB ${money(b.stake)}` : <span className="text-muted-foreground">0.00</span>}</div>
                         {b.status === "WON" && <Badge variant="outline" className={`mt-1 ${payoutStyle[b.payoutStatus] ?? ""}`}>{b.payoutStatus}</Badge>}
+                        {b.status === "PENDING" && b.projectedResult !== "UNKNOWN" && (
+                          <div className="mt-1 text-[10px] text-muted-foreground">Provisional: {b.projectedResult} {b.projectedResult === "WON" ? `ETB ${money(b.projectedPayout)}` : ""}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {b.status === "PENDING" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                            disabled={!!settlingBetId || !data.result.finished}
+                            title={!data.result.finished ? "Game not finished yet" : b.projectedResult === "UNKNOWN" ? "Market needs manual settlement" : "Settle this bet only"}
+                            onClick={() => handleSettleSingle(b.id)}
+                          >
+                            {settlingBetId === b.id ? <RefreshCw className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                            Settle
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
