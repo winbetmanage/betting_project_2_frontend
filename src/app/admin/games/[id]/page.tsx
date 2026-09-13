@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
+import { GameApiLinkEditor } from "@/components/admin/GameApiLinkEditor";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
 type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
@@ -799,6 +800,20 @@ export default function GameDetailsPage() {
         </CardHeader>
         <CardContent>
           <GameApiInfo gameId={game.id} showFetch onFetched={reloadGame} />
+        </CardContent>
+      </Card>
+
+      <Card className="border-border bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Hash className="size-5 text-primary" /> Edit API links
+          </CardTitle>
+          <CardDescription>
+            Connect this game to The Odds API event id and football-data match id — search and confirm, or type the id directly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GameApiLinkEditor gameId={game.id} onUpdated={reloadGame} />
         </CardContent>
       </Card>
 
