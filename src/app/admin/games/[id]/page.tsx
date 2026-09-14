@@ -15,7 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Trophy, Clock, Calendar, Hash, Globe, Building, Check, X, Activity, Download, AlertTriangle, Shield, Trash2, Wand2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Trophy, Clock, Calendar, Hash, Globe, Building, Check, X, Activity, Download, AlertTriangle, Shield, Trash2, Wand2, RefreshCw, BookOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
@@ -23,7 +23,7 @@ import { GameApiInfo } from "@/components/admin/GameApiInfo";
 import { GameApiLinkEditor } from "@/components/admin/GameApiLinkEditor";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
-type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
+type Market = { id: string; name: string; type: string; status: string; selections: Selection[]; sourceBookmakerKeys?: string[] | null };
 type Game = {
   id: string;
   homeTeam: string;
@@ -832,7 +832,9 @@ export default function GameDetailsPage() {
             <div className="py-12 text-center text-sm text-muted-foreground">No markets yet — fetch from bookmakers below</div>
           ) : (
             <Accordion type="multiple" className="divide-y divide-border">
-              {game.markets.map((m) => (
+              {game.markets.map((m) => {
+                const sources = Array.isArray(m.sourceBookmakerKeys) ? m.sourceBookmakerKeys.filter((k): k is string => typeof k === "string") : [];
+                return (
                 <AccordionItem key={m.id} value={m.id}>
                   <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">
                     <div className="flex w-full flex-wrap items-center justify-between gap-2">
@@ -842,6 +844,12 @@ export default function GameDetailsPage() {
                           {m.type}
                         </Badge>
                         <Badge className={m.status === "OPEN" ? "bg-secondary text-white" : "bg-muted"}>{m.status}</Badge>
+                        {sources.length > 0 && (
+                          <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/10 text-[10px] text-primary" title={sources.join(", ")}>
+                            <BookOpen className="size-3" /> {sources[0]}
+                            {sources.length > 1 ? ` +${sources.length - 1}` : ""}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{m.selections.length} selections</span>
@@ -858,6 +866,11 @@ export default function GameDetailsPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
+                    {sources.length > 0 && (
+                      <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <BookOpen className="size-3.5" /> Source bookmaker{sources.length > 1 ? "s" : ""}: <span className="font-mono text-foreground">{sources.join(", ")}</span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {m.selections.map((s) => (
                         <span
@@ -870,7 +883,8 @@ export default function GameDetailsPage() {
                     </div>
                   </AccordionContent>
                 </AccordionItem>
-              ))}
+                );
+              })}
             </Accordion>
           )}
         </CardContent>

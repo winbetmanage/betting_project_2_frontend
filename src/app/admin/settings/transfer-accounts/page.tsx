@@ -379,7 +379,7 @@ export default function TransferAccountsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="admin-cards">
                 <TableHeader className="bg-primary">
                   <TableRow className="hover:bg-primary border-primary">
                     <TableHead className="text-white text-xs tracking-widest">ACCOUNT</TableHead>

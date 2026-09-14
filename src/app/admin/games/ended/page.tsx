@@ -271,7 +271,7 @@ export default function EndedGamesPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="admin-cards">
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
                       <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
@@ -441,7 +441,7 @@ export default function EndedGamesPage() {
                   <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No markets were added for this game.</p>
                 ) : (
                   <div className="overflow-x-auto rounded-lg border border-border">
-                    <Table>
+                    <Table className="admin-cards">
                       <TableHeader className="bg-muted/50">
                         <TableRow className="hover:bg-muted/50">
                           <TableHead className="text-xs tracking-widest">MARKET</TableHead>

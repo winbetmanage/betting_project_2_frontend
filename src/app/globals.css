@@ -144,3 +144,58 @@
     @apply font-sans;
   }
 }
+
+/* Mobile card layout for admin tables (below md; desktop untouched).
+   Rows become cards, each cell becomes a labelled line using the column
+   header copied into data-label by ResponsiveTables.tsx. */
+@media (max-width: 767.98px) {
+  .admin-cards,
+  .admin-cards > thead,
+  .admin-cards > tbody,
+  .admin-cards > tfoot,
+  .admin-cards > tbody > tr,
+  .admin-cards > tbody > td {
+    display: block;
+    width: 100%;
+  }
+  .admin-cards > thead {
+    display: none;
+  }
+  .admin-cards > tbody > tr {
+    border: 1px solid var(--border);
+    border-radius: 0.85rem;
+    background: var(--card);
+    padding: 0.35rem 0.75rem 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .admin-cards > tbody > td {
+    display: grid;
+    grid-template-columns: min(38%, 9rem) 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left !important;
+    font-size: 0.8rem;
+  }
+  .admin-cards > tbody > td + td {
+    border-top: 1px dashed color-mix(in oklab, var(--border) 70%, transparent);
+  }
+  .admin-cards > tbody > td::before {
+    content: attr(data-label);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    white-space: normal;
+  }
+  .admin-cards > tbody > td:not([data-label]) {
+    display: block;
+  }
+  .admin-cards > tbody > td > * {
+    min-width: 0;
+  }
+}

@@ -75,6 +75,7 @@ type Settlement = {
     status: string;
     isPublished: boolean;
     externalEventId: string | null;
+    lastOddsFetchAt: string | null;
     competition: { id: string; name: string; country: string | null; sport: string | null } | null;
   };
   result: { finished: boolean; matchStatus: string; homeFT: number | null; awayFT: number | null; homeHT: number | null; awayHT: number | null; winner: string | null; source: string };
@@ -111,6 +112,18 @@ function money(n: number): string {
   return (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function timeAgo(iso: string | null): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return "just now";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export default function BetGameSettlementPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id as string;
@@ -120,10 +133,13 @@ export default function BetGameSettlementPage() {
   const [settling, setSettling] = useState(false);
   const [marking, setMarking] = useState(false);
   const [calculating, setCalculating] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [details, setDetails] = useState<FootballDetails | null>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [settlingBetId, setSettlingBetId] = useState<string | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(i);
+  }, []);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -192,21 +208,6 @@ export default function BetGameSettlementPage() {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Calculate failed");
     } finally {
       setCalculating(false);
-    }
-  };
-
-  const toggleDetails = async (open: boolean) => {
-    setDetailsOpen(open);
-    if (open && !details && !detailsLoading) {
-      setDetailsLoading(true);
-      try {
-        const res = await api.get<{ data: FootballDetails }>(`/games/${id}/football-details`, getAccessToken() ?? token);
-        setDetails(res.data);
-      } catch (e) {
-        toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed to load football details");
-      } finally {
-        setDetailsLoading(false);
-      }
     }
   };
 
@@ -281,6 +282,10 @@ export default function BetGameSettlementPage() {
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/80">
           <span className="flex items-center gap-1"><Clock className="size-4" /> {new Date(g.startTime).toLocaleString()}</span>
+          <span className="flex items-center gap-1 text-xs text-white/70" title={g.lastOddsFetchAt ? new Date(g.lastOddsFetchAt).toLocaleString() : "Odds have never been fetched for this game"}>
+            <RefreshCw className="size-3.5" />
+            {g.lastOddsFetchAt ? `Odds updated ${new Date(g.lastOddsFetchAt).toLocaleString()} (${timeAgo(g.lastOddsFetchAt)})` : "Odds never fetched"}
+          </span>
           {data.result.homeFT != null && data.result.awayFT != null && (
             <span className={`flex items-center gap-2 rounded-lg px-2.5 py-1 font-mono ${data.result.finished ? "bg-white/15" : "bg-amber-400 text-amber-900"}`}>
               {data.result.finished ? <Trophy className="size-4" /> : <Activity className="size-4" />} {data.result.homeFT} - {data.result.awayFT}
@@ -397,110 +402,16 @@ export default function BetGameSettlementPage() {
         </CardContent>
       </Card>
 
-      {/* Football details — accordion, contracted by default */}
+      {/* Football details — accordion, contracted by default; expands on tap */}
       <Card className="border-border bg-card shadow-sm">
         <CardContent className="pt-0">
           <Accordion type="single" collapsible>
             <AccordionItem value="details" className="border-0">
-              <AccordionTrigger
-                className="py-3 text-sm font-medium"
-                onClick={() => {
-                  const willOpen = !detailsOpen;
-                  toggleDetails(willOpen);
-                }}
-              >
+              <AccordionTrigger className="py-3 text-sm font-medium">
                 <span className="flex items-center gap-2"><Eye className="size-4 text-primary" /> Show details — football-data & markets breakdown</span>
               </AccordionTrigger>
               <AccordionContent>
-                {detailsLoading ? (
-                  <div className="grid place-items-center py-8"><img src={SPINNER} alt="Loading" className="size-8" /></div>
-                ) : !details ? (
-                  <div className="py-4 text-sm text-muted-foreground">Press Show details to fetch live football-data.</div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Score snapshot */}
-                    {(() => {
-                      const isNotStarted = !data.result.finished && data.result.homeFT == null && data.result.awayFT == null && (data.result.matchStatus === "SCHEDULED" || data.result.matchStatus === "TIMED" || details.match?.status === "TIMED" || details.match?.status === "SCHEDULED");
-                      if (isNotStarted) return <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">Not started yet — no goals registered.</div>;
-                      const htHome = data.result.homeHT ?? details.storedScore?.homeScoreHT ?? details.match?.score?.halfTime?.home ?? null;
-                      const htAway = data.result.awayHT ?? details.storedScore?.awayScoreHT ?? details.match?.score?.halfTime?.away ?? null;
-                      const ftHome = data.result.homeFT ?? details.storedScore?.homeScoreFT ?? details.match?.score?.fullTime?.home ?? null;
-                      const ftAway = data.result.awayFT ?? details.storedScore?.awayScoreFT ?? details.match?.score?.fullTime?.away ?? null;
-                      const status = details.match?.status ?? details.storedScore?.status ?? data.result.matchStatus;
-                      return (
-                        <>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-border p-3">
-                              <div className="text-xs text-muted-foreground">Half-time</div>
-                              <div className="mt-1 font-mono text-lg font-bold">{htHome != null && htAway != null ? `${htHome} — ${htAway}` : "—"}</div>
-                            </div>
-                            <div className="rounded-lg border border-border p-3">
-                              <div className="text-xs text-muted-foreground">Full-time {data.result.finished ? "(final)" : "(live)"}</div>
-                              <div className="mt-1 font-mono text-lg font-bold">{ftHome != null && ftAway != null ? `${ftHome} — ${ftAway}` : "—"}</div>
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">Match status: <span className="font-mono text-foreground">{status}</span>{details.fetched ? " • live fetch" : " • stored"} • source: <span className="font-mono">{data.result.source}</span></div>
-                        </>
-                      );
-                    })()}
-
-                    {/* Markets breakdown */}
-                    <div>
-                      <h4 className="mb-2 text-sm font-semibold">Betting markets — provisional {data.result.finished ? "final" : "live"} result</h4>
-                      {data.markets.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No markets added for this game.</div>
-                      ) : (
-                        <div className="overflow-x-auto rounded-lg border border-border">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted">
-                              <tr>
-                                <th className="p-2 text-left text-xs">Market</th>
-                                <th className="p-2 text-left text-xs">Point</th>
-                                <th className="p-2 text-left text-xs">Selections</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.markets.map((m) => (
-                                <tr key={m.id} className="border-t border-border">
-                                  <td className="p-2"><div className="font-medium">{m.name}</div><div className="text-xs text-muted-foreground">{m.type.replace(/_/g, " ")} • {m.status}</div></td>
-                                  <td className="p-2 font-mono text-xs">{m.parameters?.line != null ? String(m.parameters.line) : "—"}</td>
-                                  <td className="p-2">
-                                    <div className="space-y-1">
-                                      {m.selections.map((s) => {
-                                        const isPush = s.provisional === null && m.type === "HANDICAP" && s.provisional !== undefined ? false : false;
-                                        // provisional: true=winning, false=losing, null=push/void or undecided
-                                        const hasScore = data.result.homeFT != null && data.result.awayFT != null;
-                                        let badge: React.ReactNode;
-                                        let cls = "border-border text-muted-foreground";
-                                        if (!hasScore) { badge = "—"; cls="border-border text-muted-foreground"; }
-                                        else if (s.provisional === true) { badge = "Winning"; cls="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"; }
-                                        else if (s.provisional === false) { badge = "Losing"; cls="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"; }
-                                        else if (s.provisional === null) {
-                                          // Could be push or not yet decidable
-                                          const line = m.parameters?.line;
-                                          const isIntPush = line != null && Number.isInteger(line) && data.result.homeFT != null;
-                                          badge = isIntPush ? "Push" : "—";
-                                          cls = isIntPush ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-border text-muted-foreground";
-                                        }
-                                        return (
-                                          <div key={s.id} className="flex items-center gap-2 text-xs">
-                                            <span className="min-w-0 flex-1">{s.name} <span className="font-mono text-muted-foreground">@ {s.odds.toFixed(2)}</span></span>
-                                            <Badge variant="outline" className={`text-[10px] ${cls}`}>{badge}</Badge>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                      <div className="mt-2 text-xs text-muted-foreground">Provisional status is based on current {data.result.finished ? "final" : "live"} score only — not yet settled unless the game is finished and you press Settle.</div>
-                    </div>
-                  </div>
-                )}
+                <SettlementDetailsPanel gameId={id} data={data} token={token} />
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -550,7 +461,7 @@ export default function BetGameSettlementPage() {
             <div className="py-12 text-center text-sm text-muted-foreground">No bets placed on this game yet.</div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="admin-cards">
                 <TableHeader className="bg-primary">
                   <TableRow className="hover:bg-primary border-primary">
                     <TableHead className="text-white text-xs tracking-widest">USER</TableHead>
@@ -651,6 +562,140 @@ function Stat({ label, value, tone, icon }: { label: string; value: string; tone
     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}{label}</div>
       <div className={`mt-1 text-lg font-bold ${toneClass}`}>{value}</div>
+    </div>
+  );
+}
+
+function SettlementDetailsPanel({ gameId, data, token }: { gameId: string; data: Settlement; token: string | null }) {
+  const [details, setDetails] = useState<FootballDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api
+      .get<{ data: FootballDetails }>(`/games/${gameId}/football-details`, getAccessToken() ?? token)
+      .then((res) => {
+        if (!cancelled) setDetails(res.data);
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed to load football details");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId, token]);
+
+  if (loading) {
+    return (
+      <div className="grid place-items-center py-8">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={SPINNER} alt="Loading" className="size-8" />
+      </div>
+    );
+  }
+  if (!details) return <div className="py-4 text-sm text-muted-foreground">Football-data details unavailable.</div>;
+
+  const hasScore = data.result.homeFT != null && data.result.awayFT != null;
+  const htHome = data.result.homeHT ?? details.storedScore?.homeScoreHT ?? details.match?.score?.halfTime?.home ?? null;
+  const htAway = data.result.awayHT ?? details.storedScore?.awayScoreHT ?? details.match?.score?.halfTime?.away ?? null;
+  const ftHome = data.result.homeFT ?? details.storedScore?.homeScoreFT ?? details.match?.score?.fullTime?.home ?? null;
+  const ftAway = data.result.awayFT ?? details.storedScore?.awayScoreFT ?? details.match?.score?.fullTime?.away ?? null;
+  const status = details.match?.status ?? details.storedScore?.status ?? data.result.matchStatus;
+
+  return (
+    <div className="space-y-4">
+      {hasScore ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border p-3">
+              <div className="text-xs text-muted-foreground">Half-time</div>
+              <div className="mt-1 font-mono text-lg font-bold">{htHome != null && htAway != null ? `${htHome} — ${htAway}` : "—"}</div>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <div className="text-xs text-muted-foreground">Full-time {data.result.finished ? "(final)" : "(current)"}</div>
+              <div className="mt-1 font-mono text-lg font-bold">{ftHome != null && ftAway != null ? `${ftHome} — ${ftAway}` : "—"}</div>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">Match status: <span className="font-mono text-foreground">{status}</span>{details.fetched ? " • live fetch" : " • stored"} • source: <span className="font-mono">{data.result.source}</span></div>
+        </>
+      ) : (
+        <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2"><Clock className="size-4" /> Not started yet — no goals registered. Winning/losing status will appear once the game starts.</span>
+          <div className="mt-1 text-xs">Match status: <span className="font-mono">{status}</span></div>
+        </div>
+      )}
+
+      {/* Markets breakdown */}
+      <div>
+        <h4 className="mb-2 text-sm font-semibold">
+          Betting markets {hasScore ? `— ${data.result.finished ? "final" : "live"} result breakdown` : "— added markets and points"}
+        </h4>
+        {data.markets.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No markets added for this game.</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-sm admin-cards">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="p-2 text-left text-xs">Market</th>
+                  <th className="p-2 text-left text-xs">Point</th>
+                  <th className="p-2 text-left text-xs">Selections</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.markets.map((m) => (
+                  <tr key={m.id} className="border-t border-border">
+                    <td className="p-2">
+                      <div className="font-medium">{m.name}</div>
+                      <div className="text-xs text-muted-foreground">{m.type.replace(/_/g, " ")} • {m.status}</div>
+                    </td>
+                    <td className="p-2 font-mono text-xs">{m.parameters?.line != null ? String(m.parameters.line) : "—"}</td>
+                    <td className="p-2">
+                      <div className="space-y-1">
+                        {m.selections.map((s) => {
+                          let badge: React.ReactNode = "—";
+                          let cls = "border-border text-muted-foreground";
+                          if (s.isWinning === true) {
+                            badge = "Winning";
+                            cls = "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+                          } else if (s.isWinning === false) {
+                            badge = "Losing";
+                            cls = "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+                          } else if (hasScore && s.provisional === true) {
+                            badge = "Winning";
+                            cls = "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+                          } else if (hasScore && s.provisional === false) {
+                            badge = "Losing";
+                            cls = "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+                          } else if (hasScore && s.provisional === null && (m.type === "HANDICAP" || m.type === "OVER_UNDER") && m.parameters?.line != null && Number.isInteger(m.parameters.line)) {
+                            badge = "Push";
+                            cls = "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+                          }
+                          return (
+                            <div key={s.id} className="flex items-center gap-2 text-xs">
+                              <span className="min-w-0 flex-1">{s.name} <span className="font-mono text-muted-foreground">@ {s.odds.toFixed(2)}</span></span>
+                              <Badge variant="outline" className={`text-[10px] ${cls}`}>{badge}</Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {hasScore && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Status is based on the current {data.result.finished ? "final" : "live"} score only {data.result.finished ? "— press Settle to move the money." : "— it updates with the score sync and is not settled yet."}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

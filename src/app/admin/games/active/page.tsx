@@ -249,7 +249,7 @@ export default function ActiveGamesPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
@@ -358,6 +358,90 @@ export default function ActiveGamesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Mobile card view — no horizontal scrolling */}
+              <div className="space-y-3 p-3 sm:p-4 md:hidden">
+                {games.map((g) => {
+                  const s = g.score;
+                  const showScore = s && (g.status === "LIVE" || g.status === "FINISHED" || g.status === "SUSPENDED") && s.homeFT != null && s.awayFT != null;
+                  return (
+                    <div key={g.id} className={`rounded-xl border p-3 ${selectedIds.has(g.id) ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {g.isPublished ? (
+                              <span className="flex size-4 shrink-0 items-center justify-center">
+                                <svg className="size-4 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(g.id)}
+                                onChange={() => toggleRow(g.id)}
+                                className="size-4 shrink-0 cursor-pointer accent-[#0a0f2e]"
+                                aria-label={`Select ${g.homeTeam} vs ${g.awayTeam}`}
+                              />
+                            )}
+                            <TeamLogo name={g.homeTeam} className="size-5 shrink-0" />
+                            <span className="truncate text-sm font-semibold">{g.homeTeam}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pl-6">
+                            <TeamLogo name={g.awayTeam} className="size-5 shrink-0" />
+                            <span className="truncate text-sm font-semibold">{g.awayTeam}</span>
+                          </div>
+                        </div>
+                        <Badge className={`shrink-0 ${g.status === "LIVE" ? "bg-secondary text-white animate-pulse" : g.status === "SUSPENDED" ? "bg-amber-500 text-white" : "bg-primary/15 text-primary border-primary/20"}`}>
+                          {g.status}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <LeagueLogo league={g.competition?.name} className="size-3.5 shrink-0" />
+                          <span className="truncate">{g.competition?.name ?? "—"} ({g.competition?.sport?.name ?? "—"})</span>
+                        </div>
+                        <div className="font-mono">{new Date(g.startTime).toLocaleString()}</div>
+                        <div className="font-mono">{g.externalEventId?.slice(0, 8) ?? g.id.slice(0, 8)}…</div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {showScore ? (
+                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-bold ${g.status === "LIVE" ? "bg-secondary/15 text-secondary" : "bg-muted text-foreground border border-border"}`}>
+                              {g.status === "LIVE" && <span className="size-1.5 rounded-full bg-[#ef4444] animate-pulse" />}
+                              {s!.homeFT} - {s!.awayFT}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">— : —</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setApiGame(g)}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-1.5 py-1 transition hover:bg-muted/60"
+                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} — tap for details`}
+                          >
+                            <span className="text-[10px] font-medium text-muted-foreground">APIS</span>
+                            {g.hasOddsApi ? <CheckCircle2 className="size-3.5 text-secondary" /> : <XCircle className="size-3.5 text-muted-foreground/40" />}
+                            {g.hasFootballData ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : <XCircle className="size-3.5 text-muted-foreground/40" />}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <Switch checked={g.isPublished} onCheckedChange={() => setPendingToggle(g)} />
+                            <span className="text-xs text-muted-foreground">{g.isPublished ? "Yes" : "No"}</span>
+                          </div>
+                          <Button render={<Link href={`/admin/games/${g.id}`} />} size="sm" variant="outline" className="h-8" nativeButton={false}>
+                            <Eye className="size-3.5" /> Details
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="flex flex-col gap-3 border-t border-border p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-xs text-muted-foreground">
                   Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}

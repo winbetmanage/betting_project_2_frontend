@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { Separator } from "@/components/ui/separator";
 import { ApiStatus } from "@/components/admin/ApiStatus";
 import { ThemeToggle } from "@/components/admin/ThemeToggle";
+import { ResponsiveTables } from "@/components/admin/ResponsiveTables";
 
 export const metadata = { title: "Admin · Tana Betting" };
 
@@ -35,7 +36,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </header>
           <div className="flex flex-1 flex-col">
-            <div className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">{children}</div>
+            <div className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
+              <ResponsiveTables>{children}</ResponsiveTables>
+            </div>
           </div>
         </SidebarInset>
       </SidebarProvider>

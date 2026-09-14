@@ -574,7 +574,7 @@ export default function StagedGamesPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="admin-cards">
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
                       <TableHead className="w-[40px] text-white">

@@ -245,7 +245,7 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="admin-cards">
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
                       <TableHead className="text-white text-xs tracking-widest"><span className="flex items-center gap-1"><Hash className="size-3" /> ID</span></TableHead>
