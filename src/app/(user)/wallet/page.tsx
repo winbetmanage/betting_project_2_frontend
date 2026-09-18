@@ -24,8 +24,13 @@ type FundRequest = {
   payoutAccountNumber: string | null;
   payoutBankName: string | null;
   rejectionReason: string | null;
+  reviewedAt: string | null;
+  transactionId: string | null;
+  completedAt: string | null;
   createdAt: string;
 };
+
+type ProfilePayout = { payoutAccountType?: string | null; payoutAccountNumber?: string | null; payoutAccountUsername?: string | null };
 
 const statusBadge: Record<string, { c: string; t: string }> = {
   PENDING: { c: "bg-yellow-400/15 text-yellow-300 border-yellow-400/20", t: "Pending" },
@@ -49,6 +54,11 @@ export default function UserWalletPage() {
   // Withdraw form
   const [withdraw, setWithdraw] = useState({ amount: "", payoutAccountName: "", payoutAccountNumber: "", payoutBankName: "" });
   const [withdrawing, setWithdrawing] = useState(false);
+  const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [minDeposit, setMinDeposit] = useState(100);
+
+  const maxWithdrawable = Math.max(0, Math.floor((balance.available - 100) * 100) / 100);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -62,11 +72,24 @@ export default function UserWalletPage() {
       api.get<{ data: TransferAccount[] }>("/transfer-accounts/active", t).then((r) => r.data ?? []).catch(() => []),
       api.get<{ data: typeof balance }>("/funds/balance", t).then((r) => r.data).catch(() => ({ balance: 0, heldBalance: 0, available: 0 })),
       api.get<{ data: FundRequest[] }>("/funds/requests", t).then((r) => r.data ?? []).catch(() => []),
+      api.get<{ data: ProfilePayout }>("/users/me", t).then((r) => r.data).catch(() => null),
+      api.get<{ data: { minDeposit: number } }>("/settings/public", t).then((r) => r.data).catch(() => ({ minDeposit: 100 })),
     ])
-      .then(([acc, bal, reqs]) => {
+      .then(([acc, bal, reqs, me, limits]) => {
         setAccounts(acc.filter((a) => a.status));
         setBalance(bal);
         setRequests(reqs);
+        if (limits && Number(limits.minDeposit) > 0) setMinDeposit(Number(limits.minDeposit));
+        const ready = Boolean(me?.payoutAccountType && me?.payoutAccountNumber && me?.payoutAccountUsername);
+        setHasPayoutAccount(ready);
+        if (ready) {
+          setWithdraw((w) => ({
+            ...w,
+            payoutAccountName: w.payoutAccountName || me!.payoutAccountUsername || "",
+            payoutAccountNumber: w.payoutAccountNumber || me!.payoutAccountNumber || "",
+            payoutBankName: w.payoutBankName || me!.payoutAccountType || "",
+          }));
+        }
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -103,14 +126,26 @@ export default function UserWalletPage() {
     }
   };
 
-  const handleWithdraw = async (e: FormEvent) => {
+  const openWithdrawConfirm = (e: FormEvent) => {
     e.preventDefault();
+    const amount = Number(withdraw.amount);
+    if (!(amount > 0)) return toast.error("Enter an amount");
+    if (amount < 100) return toast.error("Minimum withdrawal is ETB 100");
+    if (balance.available - amount < 100) return toast.error(`ETB 100 must remain — max you can request is ETB ${maxWithdrawable.toFixed(2)}`);
+    if (!withdraw.payoutAccountName.trim() || !withdraw.payoutAccountNumber.trim() || !withdraw.payoutBankName.trim()) {
+      return toast.error("Fill all payout account fields (or set them up in your profile)");
+    }
+    setConfirmOpen(true);
+  };
+
+  const handleWithdraw = async () => {
     const t = getAccessToken() ?? token;
     setWithdrawing(true);
     try {
       await api.post("/funds/withdraw", { ...withdraw, amount: Number(withdraw.amount) }, t);
       toast.success("Withdrawal request submitted");
-      setWithdraw({ amount: "", payoutAccountName: "", payoutAccountNumber: "", payoutBankName: "" });
+      setWithdraw({ amount: "", payoutAccountName: withdraw.payoutAccountName, payoutAccountNumber: withdraw.payoutAccountNumber, payoutBankName: withdraw.payoutBankName });
+      setConfirmOpen(false);
       const [bal, r] = await Promise.all([
         api.get<{ data: typeof balance }>("/funds/balance", t).then((x) => x.data),
         api.get<{ data: FundRequest[] }>("/funds/requests", t).then((x) => x.data ?? []),
@@ -174,8 +209,8 @@ export default function UserWalletPage() {
           <form onSubmit={handleDeposit} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="flex items-center gap-2 text-sm font-medium"><ArrowDownToLine className="size-4 text-secondary" /> Deposit Funds</div>
             <div className="space-y-1.5">
-              <Label>Amount (min 100)</Label>
-              <Input type="number" min="100" step="0.01" value={deposit.amount} onChange={(e) => setDeposit({ ...deposit, amount: e.target.value })} placeholder="100.00" className="bg-white/5" />
+              <Label>Amount (min {minDeposit})</Label>
+              <Input type="number" min={minDeposit} step="0.01" value={deposit.amount} onChange={(e) => setDeposit({ ...deposit, amount: e.target.value })} placeholder="100.00" className="bg-white/5" />
             </div>
             <div className="space-y-1.5">
               <Label>Transfer to account</Label>
@@ -212,28 +247,58 @@ export default function UserWalletPage() {
         </TabsContent>
 
         <TabsContent value="withdraw">
-          <form onSubmit={handleWithdraw} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center gap-2 text-sm font-medium"><ArrowUpFromLine className="size-4 text-secondary" /> Withdraw Funds</div>
+          {!hasPayoutAccount ? (
+            <div className="space-y-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5 text-sm">
+              <div className="flex items-center gap-2 font-medium text-amber-300"><ArrowUpFromLine className="size-4" /> Set up your payout account first</div>
+              <p className="text-white/70">Withdrawals are sent to the payout account on your profile. Add it once, then come back here.</p>
+              <Button render={<a href="/profile" />} nativeButton={false} className="bg-secondary">Go to profile setup</Button>
+            </div>
+          ) : (
+          <form onSubmit={openWithdrawConfirm} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex items-center justify-between gap-2 text-sm font-medium">
+              <span className="flex items-center gap-2"><ArrowUpFromLine className="size-4 text-secondary" /> Withdraw Funds</span>
+              <span className="text-xs text-white/50">Max: ETB {maxWithdrawable.toFixed(2)} (ETB 100 stays)</span>
+            </div>
             <div className="space-y-1.5">
               <Label>Amount (min 100)</Label>
               <Input type="number" min="100" step="0.01" value={withdraw.amount} onChange={(e) => setWithdraw({ ...withdraw, amount: e.target.value })} placeholder="100.00" className="bg-white/5" />
             </div>
             <div className="space-y-1.5">
-              <Label>Payout account name</Label>
-              <Input value={withdraw.payoutAccountName} onChange={(e) => setWithdraw({ ...withdraw, payoutAccountName: e.target.value })} className="bg-white/5" />
+              <Label>Destination account (from your profile)</Label>
+              <div className="space-y-1 rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-xs">
+                <div className="flex justify-between gap-3"><span className="text-white/50">HOLDER</span><span className="text-right text-white">{withdraw.payoutAccountName || "—"}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-white/50">ACCOUNT</span><span className="text-right text-white">{withdraw.payoutAccountNumber || "—"}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-white/50">BANK</span><span className="text-right text-white">{withdraw.payoutBankName || "—"}</span></div>
+              </div>
+              <a href="/profile" className="inline-block text-xs text-primary-light hover:underline">Change payout account in profile</a>
             </div>
-            <div className="space-y-1.5">
-              <Label>Payout account number</Label>
-              <Input value={withdraw.payoutAccountNumber} onChange={(e) => setWithdraw({ ...withdraw, payoutAccountNumber: e.target.value })} className="bg-white/5" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Payout bank name</Label>
-              <Input value={withdraw.payoutBankName} onChange={(e) => setWithdraw({ ...withdraw, payoutBankName: e.target.value })} className="bg-white/5" />
-            </div>
-            <Button type="submit" disabled={withdrawing || !withdraw.amount || !withdraw.payoutAccountNumber} className="bg-primary">
-              {withdrawing ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpFromLine className="size-4" />} Request withdrawal
+            <Button type="submit" disabled={withdrawing || !withdraw.amount} className="bg-primary">
+              {withdrawing ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpFromLine className="size-4" />} Review withdrawal
             </Button>
           </form>
+          )}
+
+          {confirmOpen && (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => !withdrawing && setConfirmOpen(false)}>
+              <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0a0f2e] p-5 text-sm" onClick={(e) => e.stopPropagation()}>
+                <div className="text-base font-bold">Confirm withdrawal</div>
+                <p className="mt-1 text-xs text-white/50">Check the amount and destination before submitting. Funds are held immediately.</p>
+                <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 font-mono text-xs">
+                  <div className="flex justify-between"><span className="text-white/50">AMOUNT</span><span className="font-bold text-white">ETB {Number(withdraw.amount || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-white/50">TO</span><span className="text-right text-white">{withdraw.payoutAccountName}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-white/50">ACCOUNT</span><span className="text-right text-white">{withdraw.payoutAccountNumber}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-white/50">BANK</span><span className="text-right text-white">{withdraw.payoutBankName}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">REMAINING</span><span className="text-white">ETB {(balance.available - Number(withdraw.amount || 0)).toFixed(2)}</span></div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" className="flex-1" disabled={withdrawing} onClick={() => setConfirmOpen(false)}>Back</Button>
+                  <Button className="flex-1 bg-secondary" disabled={withdrawing} onClick={handleWithdraw}>
+                    {withdrawing ? <Loader2 className="size-4 animate-spin" /> : "Confirm & submit"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="history">
@@ -267,6 +332,13 @@ export default function UserWalletPage() {
                     )}
                     {r.status === "REJECTED" && r.rejectionReason && (
                       <div className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs text-destructive">Reason: {r.rejectionReason}</div>
+                    )}
+                    {r.type === "WITHDRAWAL" && r.status === "APPROVED" && (
+                      <div className="mt-2 space-y-0.5 text-xs text-white/50">
+                        {r.reviewedAt && <div>Reviewed: {new Date(r.reviewedAt).toLocaleString()}</div>}
+                        {r.completedAt && <div>Paid: {new Date(r.completedAt).toLocaleString()}</div>}
+                        {r.transactionId && <div>Ref: <span className="font-mono text-white/70">{r.transactionId}</span></div>}
+                      </div>
                     )}
                   </div>
                 );

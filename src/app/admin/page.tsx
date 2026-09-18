@@ -7,9 +7,10 @@ import { getAccessToken } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Ticket, Globe, ArrowUpRight, TrendingUp, Activity, Sparkles, Clock, Check, Layers, ReceiptText, Flag, Wallet, Users, Gift } from "lucide-react";
+import { Trophy, Ticket, Globe, ArrowUpRight, TrendingUp, Activity, Sparkles, Clock, Check, Layers, ReceiptText, Flag, Wallet, Users, Gift, Bell } from "lucide-react";
 import { ApiStatus } from "@/components/admin/ApiStatus";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
+import type { UINotification } from "@/components/notifications/NotificationBell";
 
 type MarketRow = { id: string; name: string; type: string; status: string; selections: { id: string; name: string; odds: number | string }[] };
 type GameRow = {
@@ -33,8 +34,7 @@ const quickActions = [
   { href: "/admin/users/referral-bonus", label: "Referral Bonus", desc: "Paid referral rewards", icon: Gift, iconBg: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
 ];
 
-function formatTimeLeft(startIso: string, status: string, now: Date): { text: string; live: boolean } {
-  if (status === "LIVE") return { text: "Live", live: true };
+function formatTimeLeft(startIso: string, status: string, now: Date): { text: string; live: boolean } {  if (status === "LIVE") return { text: "Live", live: true };
   if (status === "SUSPENDED") return { text: "Paused", live: true };
   const diff = new Date(startIso).getTime() - now.getTime();
   if (diff <= 0) return { text: "Started", live: true };
@@ -47,10 +47,22 @@ function formatTimeLeft(startIso: string, status: string, now: Date): { text: st
   return { text: "Soon", live: false };
 }
 
+function timeAgo(iso: string, now: Date): string {
+  const diff = now.getTime() - new Date(iso).getTime();
+  if (diff < 60000) return "just now";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export default function AdminDashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [stats, setStats] = useState({ sports: 0, games: 0, bets: 0 });
   const [activeGames, setActiveGames] = useState<GameRow[]>([]);
+  const [notifications, setNotifications] = useState<UINotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -71,10 +83,12 @@ export default function AdminDashboard() {
       api.get<{ data: unknown[] }>("/games", t).then((r) => r.data.length).catch(() => 0),
       api.get<{ data: unknown[] }>("/bets", t).then((r) => r.data.length).catch(() => 0),
       api.get<{ data: GameRow[] }>("/games?limit=100&include=markets", t).then((r) => r.data?.filter((g) => ["SCHEDULED", "LIVE", "SUSPENDED"].includes(g.status)) ?? []).catch(() => []),
+      api.get<{ data: UINotification[] }>("/notifications/admin?limit=5", t).then((r) => r.data ?? []).catch(() => []),
     ])
-      .then(([sports, games, bets, active]) => {
+      .then(([sports, games, bets, active, notifs]) => {
         setStats({ sports, games, bets });
         setActiveGames(active);
+        setNotifications(notifs);
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -217,13 +231,52 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+      {/* Latest notifications */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardHeader className="border-b border-border">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bell className="size-5 text-primary" /> Latest notifications
+              {notifications.filter((n) => !n.isRead).length > 0 && (
+                <Badge variant="secondary" className="ml-1 border-primary/20 bg-primary/15 text-primary">
+                  {notifications.filter((n) => !n.isRead).length} unread
+                </Badge>
+              )}
+            </CardTitle>
+            <Button nativeButton={false} render={<Link href="/admin/notifications" />} variant="outline" size="sm" className="h-8">
+              View all <ArrowUpRight className="size-3" />
+            </Button>
+          </div>
+          <CardDescription>Game finishes, signups and fund requests — newest first.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {notifications.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No notifications yet.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {notifications.map((n) => (
+                <div key={n.id} className="flex items-start gap-3 px-4 py-3">
+                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.isRead ? "bg-muted-foreground/30" : "bg-secondary"}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{n.title}</div>
+                    {n.message && <div className="truncate text-xs text-muted-foreground">{n.message}</div>}
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {n.user?.email ? `${n.user.email} · ` : ""}{timeAgo(n.createdAt, now)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Active Games */}
       <Card className="border-border bg-card shadow-sm">
         <CardHeader className="border-b border-border">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Trophy className="size-5 text-primary" /> Active Games
-              <Badge variant="secondary" className="ml-1 bg-primary/15 text-primary border-primary/20">
+              <Trophy className="size-5 text-primary" /> Active Games              <Badge variant="secondary" className="ml-1 bg-primary/15 text-primary border-primary/20">
                 {activeGames.length}
               </Badge>
             </CardTitle>

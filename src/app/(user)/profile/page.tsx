@@ -5,7 +5,10 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { getAccessToken, type AuthUser } from "@/lib/auth";
 import { toast } from "sonner";
-import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity, Gift, Copy, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity, Gift, Copy, Users, Landmark, Loader2 } from "lucide-react";
 
 type Transaction = {
   id: string;
@@ -26,13 +29,21 @@ const txLabel: Record<string, string> = {
   REFERRAL_BONUS: "Referral bonus",
 };
 
+type ProfileUser = AuthUser & {
+  payoutAccountType?: string | null;
+  payoutAccountNumber?: string | null;
+  payoutAccountUsername?: string | null;
+};
+
 export default function UserProfilePage() {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<ProfileUser | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  const [payout, setPayout] = useState({ type: "", number: "", username: "" });
+  const [savingPayout, setSavingPayout] = useState(false);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -49,6 +60,13 @@ export default function UserProfilePage() {
       .then(([u, b]) => {
         setUser(u);
         setBalance(b);
+        if (u) {
+          setPayout({
+            type: (u as ProfileUser).payoutAccountType ?? "",
+            number: (u as ProfileUser).payoutAccountNumber ?? "",
+            username: (u as ProfileUser).payoutAccountUsername ?? "",
+          });
+        }
       })
       .catch(() => toast.error("Failed to load profile"))
       .finally(() => setLoading(false));
@@ -66,6 +84,29 @@ export default function UserProfilePage() {
   }, [token]);
 
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? "T";
+  const payoutReady = Boolean(user?.payoutAccountType && user?.payoutAccountNumber && user?.payoutAccountUsername);
+
+  const savePayout = async () => {
+    const t = getAccessToken() ?? token;
+    if (!payout.type.trim() || !payout.number.trim() || !payout.username.trim()) {
+      toast.error("Fill account type, number and holder name");
+      return;
+    }
+    setSavingPayout(true);
+    try {
+      const res = await api.patch<{ data: ProfileUser }>(
+        "/users/me",
+        { payoutAccountType: payout.type.trim(), payoutAccountNumber: payout.number.trim(), payoutAccountUsername: payout.username.trim() },
+        t
+      );
+      setUser(res.data);
+      toast.success("Payout account saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save payout account");
+    } finally {
+      setSavingPayout(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -121,6 +162,47 @@ export default function UserProfilePage() {
               </div>
               <div className="mt-1 text-lg font-semibold">{user?.role || "—"}</div>
             </div>
+          </div>
+
+          {/* Payout account */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-sm font-semibold">
+                <Landmark className="size-4 text-secondary" /> Payout account
+              </div>
+              {payoutReady ? (
+                <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-green-400">Ready for withdrawals</span>
+              ) : (
+                <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">Required before withdrawals</span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-white/50">Where your winnings are sent. Editable anytime — each withdrawal snapshots these details.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Account type</Label>
+                <select
+                  value={payout.type}
+                  onChange={(e) => setPayout({ ...payout, type: e.target.value })}
+                  className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none focus:border-secondary"
+                >
+                  <option value="" className="bg-black">Select type</option>
+                  {["TELEBIRR", "CBE_BIRR", "AMOLE", "BANK"].map((o) => (
+                    <option key={o} value={o} className="bg-black">{o}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Account number</Label>
+                <Input value={payout.number} onChange={(e) => setPayout({ ...payout, number: e.target.value })} placeholder="09xxxxxxxx" className="bg-white/5" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Holder name</Label>
+                <Input value={payout.username} onChange={(e) => setPayout({ ...payout, username: e.target.value })} placeholder="Full name on the account" className="bg-white/5" />
+              </div>
+            </div>
+            <Button onClick={savePayout} disabled={savingPayout} className="mt-3 bg-secondary">
+              {savingPayout ? <Loader2 className="size-4 animate-spin" /> : null} Save payout account
+            </Button>
           </div>
 
           {/* Referral card */}

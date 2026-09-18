@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BetReceiptDialog, type ReceiptData } from "@/components/bets/BetReceipt";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Ticket,
@@ -19,6 +20,7 @@ import {
   Wallet,
   RefreshCw,
   TrendingUp,
+  ReceiptText,
 } from "lucide-react";
 import { TeamLogo } from "@/components/TeamLogo";
 
@@ -51,6 +53,7 @@ type Bet = {
   stake: string | number;
   totalOdds: string | number;
   potentialPayout: string | number;
+  settledPayout?: string | number;
   status: string;
   placedAt: string;
   settledAt: string | null;
@@ -71,6 +74,7 @@ export default function MyBetsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [receiptBet, setReceiptBet] = useState<ReceiptData | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -188,8 +192,33 @@ export default function MyBetsPage() {
           {visible.map((bet) => {
             const st = statusConfig[bet.status] ?? statusConfig.PENDING;
             const StIcon = st.icon;
+            const receipt: ReceiptData = {
+              id: bet.id,
+              type: bet.type === "SINGLE" ? "SINGLE" : "MULTIPLE",
+              legs: bet.selections.map((s) => ({
+                gameLabel: s.selection.market?.game ? `${s.selection.market.game.homeTeam} vs ${s.selection.market.game.awayTeam}` : "Game removed",
+                marketName: s.selection.market?.name ?? "Market",
+                selectionName: s.selection.name,
+                odds: Number(s.oddsAtPlacement),
+                result: s.result,
+              })),
+              stake: Number(bet.stake),
+              totalOdds: Number(bet.totalOdds),
+              potentialPayout: Number(bet.potentialPayout),
+              status: bet.status,
+              settledPayout: bet.settledPayout != null ? Number(bet.settledPayout) : null,
+              placedAt: bet.placedAt,
+              settledAt: bet.settledAt,
+            };
             return (
-              <div key={bet.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+              <div
+                key={bet.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setReceiptBet(receipt)}
+                onKeyDown={(e) => { if (e.key === "Enter") setReceiptBet(receipt); }}
+                className="cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-primary/40"
+              >
                 {/* Bet header */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
                   <div className="flex items-center gap-2">
@@ -197,10 +226,14 @@ export default function MyBetsPage() {
                       <StIcon className="size-3" /> {st.label}
                     </Badge>
                     <span className="text-xs text-white/50">
-                      {bet.type === "SINGLE" ? "Single" : "Multiple"} · {new Date(bet.placedAt).toLocaleString()}
+                      {bet.type === "SINGLE" ? "Single" : `Multiple · ${bet.selections.length} legs`} · {new Date(bet.placedAt).toLocaleString()}
                     </span>
                   </div>
-                  <span className="font-mono text-[11px] text-white/30">#{bet.id.slice(0, 8)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="hidden text-[11px] text-white/40 sm:inline">view receipt</span>
+                    <ReceiptText className="size-4 text-white/40" />
+                    <span className="font-mono text-[11px] text-white/30">#{bet.id.slice(0, 8)}</span>
+                  </div>
                 </div>
 
                 {/* Selections */}
@@ -261,6 +294,15 @@ export default function MyBetsPage() {
           })}
         </div>
       )}
+
+      <BetReceiptDialog
+        open={!!receiptBet}
+        onOpenChange={(o) => { if (!o) setReceiptBet(null); }}
+        data={receiptBet}
+        confirmLabel="Close"
+        cancelLabel=""
+        onConfirm={() => setReceiptBet(null)}
+      />
     </div>
   );
 }

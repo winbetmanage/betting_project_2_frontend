@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
 import { TeamLogo } from "@/components/TeamLogo";
-import { timeRemaining } from "@/lib/timeRemaining";
+import { useBetSlip } from "@/components/bets/BetSlipProvider";
+import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
+import { timeRemaining, isBettingWindowOpen } from "@/lib/timeRemaining";
 import {
   Monitor,
   Trophy,
@@ -124,10 +126,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [sports, setSports] = useState<Sport[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<(Selection & { marketName: string; gameId: string }) | null>(null);
-  const [stake, setStake] = useState("10");
-  const [placing, setPlacing] = useState(false);
+  const slip = useBetSlip();
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [confirmReceipt, setConfirmReceipt] = useState<ReceiptData | null>(null);
+  const [placedReceipt, setPlacedReceipt] = useState<ReceiptData | null>(null);
   const [activeSport, setActiveSport] = useState<string | null>(null);
   const [activeLeague, setActiveLeague] = useState<string | null>(null);
   const [results, setResults] = useState<ResultGame[]>([]);
@@ -171,34 +173,37 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
     return () => window.removeEventListener("tana:sport-select", onSportSelect);
   }, []);
 
-  const placeBet = async () => {
+  const openReceipt = () => {
     if (isGuest) {
       router.push("/login");
       return;
     }
-    if (!selected) return;
-    const token = getAccessToken();
-    if (!token) {
-      router.push("/login");
+    if (slip.count === 0) {
+      toast.error("Add at least one selection first");
       return;
     }
-    setPlacing(true);
+    if (!(Number(slip.stake) > 0)) {
+      toast.error("Enter a stake");
+      return;
+    }
     setNotice(null);
-    try {
-      const res = await api.post<{ data: { id: string } }>(
-        "/bets",
-        { stake: Number(stake), selections: [{ selectionId: selected.id, odds: Number(selected.odds) }] },
-        token
-      );
-      toast.success(`Bet placed! ID: ${res.data.id.slice(0, 8)}`);
-      setNotice({ kind: "ok", text: `Bet placed! ID: ${res.data.id.slice(0, 8)}` });
-      setSelected(null);
-    } catch (err) {
-      const msg = err instanceof ApiError || err instanceof Error ? err.message : "Could not place bet";
+    setConfirmReceipt(buildReceipt(slip.legs, Number(slip.stake), { existingOddsTotal: slip.totalOdds }));
+  };
+
+  const confirmPlace = async () => {
+    if (!confirmReceipt) return;
+    const res = await slip.place();
+    if (res.betId) {
+      toast.success(`Bet placed! ID: ${res.betId.slice(0, 8)}`);
+      setNotice({ kind: "ok", text: `Bet placed! ID: ${res.betId.slice(0, 8)}` });
+      window.dispatchEvent(new CustomEvent("tana:bet-placed", { detail: res.betId }));
+      setConfirmReceipt(null);
+      setPlacedReceipt({ ...confirmReceipt, id: res.betId, placedAt: new Date().toISOString() });
+    } else {
+      const msg = res.error ?? "Could not place bet";
       toast.error(msg);
       setNotice({ kind: "err", text: msg });
-    } finally {
-      setPlacing(false);
+      setConfirmReceipt(null);
     }
   };
 
@@ -428,7 +433,12 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
 
                   {/* Odds grid — H2H (match winner) market only */}
                   <div>
-                    {(game.markets ?? []).filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0).length === 0 ? (
+                    {!isBettingWindowOpen(game.startTime, game.status) ? (
+                        <div className="grid place-items-center gap-1 p-6 text-center">
+                          <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">Betting closed</span>
+                          <span className="text-[11px] text-[#94a3b8]">Kickoff within 15 minutes</span>
+                        </div>
+                      ) : (game.markets ?? []).filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0).length === 0 ? (
                         <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">Betting currently unavailable</div>
                       ) : (
                         <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-[#e2e8f0] divide-y sm:divide-y-0">
@@ -446,11 +456,21 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                                   <div className="px-2 py-1 text-center hidden sm:block">X2</div>
                                 </div>
                                 {market.selections.slice(0, 6).map((sel) => {
-                                  const isSelected = selected?.id === sel.id;
+                                  const isSelected = slip.has(sel.id);
                                   return (
                                     <button
                                       key={sel.id}
-                                      onClick={() => setSelected({ ...sel, marketName: market.name, gameId: game.id })}
+                                      onClick={() =>
+                                        slip.toggle({
+                                          selectionId: sel.id,
+                                          gameId: game.id,
+                                          gameLabel: `${game.homeTeam} vs ${game.awayTeam}`,
+                                          marketId: market.id,
+                                          marketName: market.name,
+                                          selectionName: sel.name,
+                                          odds: Number(sel.odds),
+                                        })
+                                      }
                                       className={`px-1 py-3 text-center transition sm:p-2 ${
                                         isSelected
                                           ? "bg-[#3b82f6] text-white"
@@ -678,7 +698,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           </div>
 
           <div className="rounded-xl bg-white shadow-sm border border-[#e2e8f0] min-h-[300px]">
-            {!selected ? (
+            {slip.count === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <div className="grid size-16 place-items-center rounded-full border-2 border-dashed border-[#e2e8f0] text-[#cbd5e1]">
                   <svg className="size-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -699,19 +719,33 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               </div>
             ) : (
               <div className="p-3">
-                <div className="flex items-start justify-between gap-2 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                  <div>
-                    <div className="text-xs font-semibold text-[#0f172a]">{selected.name}</div>
-                    <div className="text-[11px] text-[#64748b]">{selected.marketName}</div>
-                    <div className="text-xs font-bold text-[#3b82f6]">@{Number(selected.odds).toFixed(2)}</div>
-                  </div>
-                  <button onClick={() => setSelected(null)} className="text-[#94a3b8] hover:text-[#ef4444]">
-                    ×
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#0f172a]">{slip.count > 1 ? `Multiple — ${slip.count} legs` : "Single"}</span>
+                  <button onClick={() => slip.clear()} className="text-[11px] text-[#94a3b8] hover:text-[#ef4444]">
+                    Clear all
                   </button>
                 </div>
+                <div className="space-y-2">
+                  {slip.legs.map((l) => (
+                    <div key={l.selectionId} className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-semibold text-[#0f172a]">{l.selectionName}</div>
+                          <div className="truncate text-[11px] text-[#64748b]">{l.marketName} • {l.gameLabel}</div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-xs font-bold text-[#3b82f6]">@{l.odds.toFixed(2)}</span>
+                          <button onClick={() => slip.remove(l.selectionId)} className="text-[#94a3b8] hover:text-[#ef4444]">
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div className="mt-3 flex items-center justify-between text-xs">
-                  <span className="text-[#64748b]">Odds</span>
-                  <span className="font-bold">{Number(selected.odds).toFixed(2)}</span>
+                  <span className="text-[#64748b]">Total odds</span>
+                  <span className="font-bold">{slip.totalOdds.toFixed(2)}</span>
                 </div>
                 {notice && (
                   <div className={`mt-2 rounded-md px-2 py-1.5 text-xs ${notice.kind === "ok" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
@@ -737,37 +771,37 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   <span className="text-xs text-[#64748b]">ETB</span>
                   <input
                     type="number"
-                    value={stake}
-                    onChange={(e) => setStake(e.target.value)}
+                    value={slip.stake}
+                    onChange={(e) => slip.setStake(e.target.value)}
                     className="w-full bg-transparent text-right text-sm outline-none"
                     placeholder="0.0"
                   />
                 </div>
               </div>
               <div className="flex justify-between text-xs text-[#64748b]">
-                <span>Singles (x0)</span>
-                <span>Returns: ETB 0.00</span>
+                <span>{slip.count} selection{slip.count === 1 ? "" : "s"}</span>
+                <span>Odds: {slip.totalOdds.toFixed(2)}</span>
               </div>
-              {selected && (
+              {slip.count > 0 && (
                 <div className="flex justify-between text-xs font-medium">
                   <span>Potential Returns</span>
-                  <span className="text-[#0f172a]">ETB {(Number(stake || 0) * Number(selected.odds)).toFixed(2)}</span>
+                  <span className="text-[#0f172a]">ETB {slip.potentialPayout.toFixed(2)}</span>
                 </div>
               )}
             </div>
             <div className="mt-3 flex gap-2">
               <button
-                onClick={() => setSelected(null)}
+                onClick={() => slip.clear()}
                 className="grid size-9 place-items-center rounded-md border border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
               >
                 🗑️
               </button>
               <button
-                onClick={placeBet}
-                disabled={!selected || placing}
+                onClick={openReceipt}
+                disabled={slip.count === 0 || slip.placing}
                 className="flex-1 rounded-md bg-[#3b82f6] py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-[#2563eb] disabled:opacity-50"
               >
-                {placing ? "PLACING..." : "PLACE BET"}
+                {slip.placing ? "PLACING..." : "PLACE BET"}
               </button>
             </div>
           </div>
@@ -775,34 +809,53 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       </aside>
 
       {/* Mobile bet slip bar — fixed at bottom on small screens */}
-      {selected && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e2e8f0] bg-white p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] lg:hidden">
+      {slip.count > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e2e8f0] bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] lg:hidden">
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold text-[#0f172a]">{selected.name} <span className="font-normal text-[#64748b]">• {selected.marketName}</span></div>
-              <div className="text-[11px] text-[#64748b]">
-                Odds <span className="font-bold text-[#0f172a]">{Number(selected.odds).toFixed(2)}</span>
-                {" · "}Stake <span className="font-bold text-[#0f172a]">{stake || 0}</span>
-                {" · "}Returns <span className="font-bold text-[#0f172a]">ETB {(Number(stake || 0) * Number(selected.odds)).toFixed(2)}</span>
+              <div className="truncate text-xs font-semibold text-[#0f172a]">
+                {slip.count > 1 ? `Multiple — ${slip.count} legs` : slip.legs[0].selectionName}
+                {slip.count === 1 && <span className="font-normal text-[#64748b]"> • {slip.legs[0].marketName}</span>}
+              </div>
+              <div className="truncate text-[11px] text-[#64748b]">
+                Odds <span className="font-bold text-[#0f172a]">{slip.totalOdds.toFixed(2)}</span>
+                {" · "}Stake <span className="font-bold text-[#0f172a]">{slip.stake || 0}</span>
+                {" · "}Returns <span className="font-bold text-[#0f172a]">ETB {slip.potentialPayout.toFixed(2)}</span>
               </div>
             </div>
             <button
-              onClick={() => setSelected(null)}
-              className="grid size-9 shrink-0 place-items-center rounded-md border border-[#e2e8f0] text-[#64748b]"
+              onClick={() => slip.clear()}
+              className="grid size-10 shrink-0 place-items-center rounded-md border border-[#e2e8f0] text-[#64748b]"
               aria-label="Clear selection"
             >
               ×
             </button>
-            <button
-              onClick={placeBet}
-              disabled={placing}
-              className="shrink-0 rounded-md bg-[#3b82f6] px-4 py-2.5 text-xs font-bold tracking-wide text-white shadow-sm disabled:opacity-50"
-            >
-              {placing ? "PLACING..." : "PLACE BET"}
-            </button>
           </div>
+          <button
+            onClick={openReceipt}
+            disabled={slip.placing}
+            className="mt-2 w-full rounded-md bg-[#3b82f6] py-3 text-sm font-bold tracking-wide text-white shadow-sm disabled:opacity-50"
+          >
+            {slip.placing ? "PLACING..." : `PLACE BET · ETB ${slip.potentialPayout.toFixed(2)}`}
+          </button>
         </div>
       )}
+
+      <BetReceiptDialog
+        open={!!confirmReceipt}
+        onOpenChange={(o) => { if (!o) setConfirmReceipt(null); }}
+        data={confirmReceipt}
+        busy={slip.placing}
+        onConfirm={confirmPlace}
+      />
+      <BetReceiptDialog
+        open={!!placedReceipt}
+        onOpenChange={(o) => { if (!o) setPlacedReceipt(null); }}
+        data={placedReceipt}
+        confirmLabel="Done"
+        cancelLabel=""
+        onConfirm={() => setPlacedReceipt(null)}
+      />
     </div>
   );
 }

@@ -116,7 +116,10 @@ type BookmakerGroup = {
 };
 
 function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { gameId: string; externalEventId: string | null; onApproved: () => void }) {
+  // Market keys with no goals-based settlement (corners/cards) — hidden in "Scores only" mode
+  const NON_SCORE_MARKET_KEYS = ["corners_1x2", "alternate_totals_corners", "alternate_spreads_corners", "alternate_totals_cards", "alternate_spreads_cards"];
   const [groups, setGroups] = useState<BookmakerGroup[]>([]);
+  const [scoreOnly, setScoreOnly] = useState(true);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [selected, setSelected] = useState<Record<string, string>>({});
@@ -240,7 +243,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
 
   const handleRecordSelected = async () => {
     const savedSet = new Set(savedKeys);
-    const approvals = groups
+    const approvals = visibleGroups
       .filter((g) => checked[groupKey(g)] && !savedSet.has(groupKey(g)))
       .map((g) => {
         const selections = buildSelections(g);
@@ -281,7 +284,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       // Select all unsaved groups, use first bookmaker for each
       const newSelected: Record<string, string> = {};
       const approvals = [];
-      for (const g of groups) {
+      for (const g of visibleGroups) {
         const k = groupKey(g);
         if (savedSet.has(k)) continue; // skip already saved
         const bk = g.bookmakers[0]?.bookmakerKey;
@@ -331,7 +334,9 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
     );
   }
 
-  const selectedCount = groups.filter((g) => checked[groupKey(g)] && !savedKeys.includes(groupKey(g))).length;
+  const visibleGroups = scoreOnly ? groups.filter((g) => !NON_SCORE_MARKET_KEYS.includes(g.marketKey)) : groups;
+  const hiddenCount = groups.length - visibleGroups.length;
+  const selectedCount = visibleGroups.filter((g) => checked[groupKey(g)] && !savedKeys.includes(groupKey(g))).length;
 
   return (
     <Card className="border-border bg-card shadow-sm">
@@ -343,8 +348,24 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
             </CardTitle>
             <CardDescription>All market types via getAllMarketsOddsUrl — grouped by market → bookmaker.</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setAutoFillOpen(true)} disabled={autoFilling || groups.length === 0} variant="outline" className="border-secondary/30 text-secondary hover:bg-secondary/10" title="Select all markets, pick first bookmaker, and record all at once">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-md border border-border text-xs font-medium" title="Show only goal/score-related markets, or everything including corners/cards">
+              <button
+                type="button"
+                onClick={() => setScoreOnly(true)}
+                className={`px-2.5 py-1.5 transition ${scoreOnly ? "bg-primary text-white" : "bg-muted/40 text-muted-foreground hover:text-foreground"}`}
+              >
+                Scores only{scoreOnly ? ` (${visibleGroups.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setScoreOnly(false)}
+                className={`px-2.5 py-1.5 transition ${!scoreOnly ? "bg-primary text-white" : "bg-muted/40 text-muted-foreground hover:text-foreground"}`}
+              >
+                All markets{!scoreOnly ? ` (${visibleGroups.length})` : ""}
+              </button>
+            </div>
+            <Button onClick={() => setAutoFillOpen(true)} disabled={autoFilling || visibleGroups.length === 0} variant="outline" className="border-secondary/30 text-secondary hover:bg-secondary/10" title="Select all markets, pick first bookmaker, and record all at once">
               {autoFilling ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />} Auto Fill
             </Button>
             {selectedCount > 0 && (
@@ -375,10 +396,16 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
               <div key={i} className="h-24 animate-pulse rounded bg-muted" />
             ))}
           </div>
-        ) : groups.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">No bookmaker odds yet — click Fetch</div>
+        ) : visibleGroups.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {groups.length === 0 ? "No bookmaker odds yet — click Fetch" : "No score-related markets — switch to All markets to see corners/cards"}
+          </div>
         ) : (
-          groups.map((group) => {
+          <>
+            {scoreOnly && hiddenCount > 0 && (
+              <div className="text-xs text-muted-foreground">Showing {visibleGroups.length} score-related markets · {hiddenCount} corners/cards hidden — switch to All markets to see them.</div>
+            )}
+            {visibleGroups.map((group) => {
             const k = groupKey(group);
             const chosen = selected[k];
             const bm = group.bookmakers.find((b) => b.bookmakerKey === chosen) ?? group.bookmakers[0];
@@ -487,7 +514,8 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
                 </AccordionItem>
               </Accordion>
             );
-          })
+          })}
+          </>
         )}
       </CardContent>
       <Dialog open={autoFillOpen} onOpenChange={setAutoFillOpen}>
@@ -497,7 +525,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
               <Wand2 className="size-5 text-primary" /> Auto Fill All Markets?
             </DialogTitle>
             <DialogDescription>
-              This will select all {groups.length} available markets, pick the first bookmaker for each, and record them immediately. Existing selections will be updated.
+              This will select all {visibleGroups.length} {scoreOnly ? "score-related" : ""} available markets, pick the first bookmaker for each, and record them immediately. Existing selections will be updated.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

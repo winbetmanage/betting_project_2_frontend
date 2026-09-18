@@ -38,10 +38,18 @@ import {
   Eye,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
-type Leg = { id: string; selectionName: string; marketName: string; marketType: string; odds: number; result: string };
+type Leg = { id: string; selectionId: string; selectionName: string; marketName: string; marketType: string; odds: number; result: string };
 type SettleBet = {
   id: string;
   type: string;
@@ -134,6 +142,7 @@ export default function BetGameSettlementPage() {
   const [marking, setMarking] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [settlingBetId, setSettlingBetId] = useState<string | null>(null);
+  const [settleConfirmOpen, setSettleConfirmOpen] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -162,10 +171,11 @@ export default function BetGameSettlementPage() {
   }, [load]);
 
   const handleSettle = async () => {
+    setSettleConfirmOpen(false);
     setSettling(true);
     try {
-      const res = await api.post<{ message: string; data: Settlement }>(`/games/${id}/settle`, {}, getAccessToken() ?? token);
-      toast.success(res.message || "Game settled");
+      const res = await api.post<{ message: string; data: Settlement }>(`/games/${id}/settle-payments`, {}, getAccessToken() ?? token);
+      toast.success(res.message || "Winners paid");
       setData(res.data);
     } catch (e) {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Settle failed");
@@ -187,21 +197,20 @@ export default function BetGameSettlementPage() {
     }
   };
 
-  // Re-evaluates the FULL page (result + every bet's win/lose + totals) from the current game score
-  // and persists Selection.isWinning for markets that can be resolved from the result.
+  // Preview-only: who won / lost and the expected profit — moves no money.
   const recalculate = async () => {
     setCalculating(true);
     try {
       const res = await api.post<{
         message: string;
-        data: Settlement & { meta?: { resultFinished: boolean; marketsResolved: number; selectionsUpdated: number } };
+        data: Settlement & { meta?: { resultFinished: boolean; marketsResolved: number; previewWon: number; previewLost: number; previewVoid: number; previewUndecided: number; previewPayout: number; profit: number } };
       }>(`/games/${id}/calculate`, {}, getAccessToken() ?? token);
       setData(res.data);
       const c = res.data.counts;
       const m = res.data.meta;
       toast.success(
         m?.resultFinished
-          ? `${res.message} • ${c.total} bets: ${c.won} won · ${c.lost} lost · ${c.void} void · pay ETB ${res.data.totals.projectedPayout.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+          ? `${res.message} • settled so far — ${c.total} bets: ${c.won} won · ${c.lost} lost · ${c.void} void`
           : "Calculated — game not finished yet"
       );
     } catch (e) {
@@ -221,6 +230,23 @@ export default function BetGameSettlementPage() {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Settle failed");
     } finally {
       setSettlingBetId(null);
+    }
+  };
+
+  const [gradingLegId, setGradingLegId] = useState<string | null>(null);
+
+  // Manual per-leg grading for markets with no data feed (corners/cards):
+  // declares the selection's outcome; every ticket holding it re-grades at once.
+  const handleGradeLeg = async (leg: Leg, isWinning: boolean | null) => {
+    setGradingLegId(leg.id);
+    try {
+      await api.post(`/markets/selections/${leg.selectionId}/settle`, { isWinning }, getAccessToken() ?? token);
+      toast.success(`${leg.selectionName} marked ${isWinning === null ? "PUSH" : isWinning ? "WON" : "LOST"}`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Grading failed");
+    } finally {
+      setGradingLegId(null);
     }
   };
 
@@ -348,7 +374,7 @@ export default function BetGameSettlementPage() {
           <CardTitle className="flex items-center gap-2"><Wallet className="size-5 text-primary" /> Settlement</CardTitle>
           <CardDescription>
             {data.result.finished
-              ? "Result is in from football-data. Settle to credit winners, then mark payouts as paid."
+              ? "Result is in from football-data. Calculate previews winners, losers and profit without moving money. Settle payment credits the winners and notifies them."
               : "Settlement unlocks once the match is finished. The 10-minute job refreshes status automatically."}
           </CardDescription>
         </CardHeader>
@@ -362,8 +388,8 @@ export default function BetGameSettlementPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             {data.canSettle ? (
-              <Button onClick={handleSettle} disabled={settling} className="gap-2 bg-primary">
-                {settling ? <RefreshCw className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Settle &amp; credit winners
+              <Button onClick={() => setSettleConfirmOpen(true)} disabled={settling} className="gap-2 bg-primary">
+                {settling ? <RefreshCw className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Settle payment
               </Button>
             ) : data.result.finished ? (
               <Badge variant="outline" className="border-secondary/30 text-secondary">
@@ -402,6 +428,43 @@ export default function BetGameSettlementPage() {
         </CardContent>
       </Card>
 
+      {/* Settle-payment confirmation */}
+      <Dialog open={settleConfirmOpen} onOpenChange={(o) => { if (!o) setSettleConfirmOpen(false); }}>
+        <DialogContent className="sm:max-w-[440px] bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="size-5 text-primary" /> Settle payment?
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              <span className="block space-y-2">
+                <span className="block">
+                  This grades every pending ticket on <span className="font-semibold">{data.game.homeTeam} vs {data.game.awayTeam}</span>, credits the winners from the house balance and sends each winner a notification. Losers are notified of nothing.
+                </span>
+                {(() => {
+                  const payable = data.bets.filter((b) => b.status === "PENDING" && (b.projectedResult === "WON" || b.projectedResult === "VOID"));
+                  const total = payable.reduce((a, b) => a + b.projectedPayout, 0);
+                  return (
+                    <span className="block rounded-lg border border-border bg-muted/40 p-3">
+                      <span className="flex justify-between"><span className="text-muted-foreground">Tickets to pay</span><span className="font-semibold">{payable.length}</span></span>
+                      <span className="flex justify-between"><span className="text-muted-foreground">Total payout</span><span className="font-bold text-emerald-600 dark:text-emerald-400">ETB {money(total)}</span></span>
+                    </span>
+                  );
+                })()}
+                <span className="block text-xs text-muted-foreground">Tickets on markets needing manual settlement stay pending. This cannot be undone.</span>
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettleConfirmOpen(false)} disabled={settling}>
+              Cancel
+            </Button>
+            <Button onClick={handleSettle} disabled={settling} className="bg-primary">
+              {settling ? "Paying..." : "Confirm & pay winners"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Football details — accordion, contracted by default; expands on tap */}
       <Card className="border-border bg-card shadow-sm">
         <CardContent className="pt-0">
@@ -431,7 +494,7 @@ export default function BetGameSettlementPage() {
                 <span className="truncate font-medium">{b.user?.name || b.user?.email || "Unknown"}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">stake {money(b.stake)} @ {b.totalOdds.toFixed(2)}</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">+ETB {money(b.status === "WON" ? b.potentialPayout : b.projectedPayout)}</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">+ETB {money(b.status === "WON" ? (b.settledPayout || b.potentialPayout) : b.projectedPayout)}</span>
                   <Badge variant="outline" className={payoutStyle[b.payoutStatus]}>{b.payoutStatus}</Badge>
                 </div>
               </div>
@@ -483,13 +546,52 @@ export default function BetGameSettlementPage() {
                       </TableCell>
                       <TableCell>
                         <div className="space-y-0.5">
+                          {b.legs.length > 1 && (
+                            <Badge variant="secondary" className="mb-1 w-fit border-primary/30 bg-primary/15 text-[10px] text-primary">
+                              PARLAY · {b.legs.length} legs
+                            </Badge>
+                          )}
                           {b.legs.map((l) => (
                             <div key={l.id} className="flex items-center gap-1.5 text-xs">
-                              <span className="truncate max-w-[180px]">{l.selectionName}</span>
+                              <span className="truncate max-w-[150px]">{l.selectionName}</span>
                               <span className="font-mono text-muted-foreground">{l.odds.toFixed(2)}</span>
-                              {l.result !== "PENDING" && (
-                                <span className={l.result === "WON" ? "text-emerald-500" : l.result === "LOST" ? "text-red-500" : "text-muted-foreground"}>
-                                  {l.result === "WON" ? <CheckCircle2 className="size-3.5" /> : l.result === "LOST" ? <XCircle className="size-3.5" /> : null}
+                              <Badge
+                                variant="outline"
+                                className={`shrink-0 text-[9px] ${
+                                  l.result === "WON"
+                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : l.result === "LOST"
+                                      ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+                                      : l.result === "VOID"
+                                        ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                        : "border-border text-muted-foreground"
+                                }`}
+                              >
+                                {l.result === "WON" ? "WON" : l.result === "LOST" ? "LOST" : l.result === "VOID" ? "PUSH" : "PENDING"}
+                              </Badge>
+                              {l.result === "PENDING" && (
+                                <span className="flex shrink-0 items-center gap-0.5" title="Grade this leg manually (for markets with no data feed)">
+                                  <button
+                                    disabled={gradingLegId === l.id}
+                                    onClick={() => handleGradeLeg(l, true)}
+                                    className="grid size-5 place-items-center rounded border border-emerald-500/40 text-[9px] font-bold text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-400"
+                                  >
+                                    W
+                                  </button>
+                                  <button
+                                    disabled={gradingLegId === l.id}
+                                    onClick={() => handleGradeLeg(l, false)}
+                                    className="grid size-5 place-items-center rounded border border-red-500/40 text-[9px] font-bold text-red-600 hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400"
+                                  >
+                                    L
+                                  </button>
+                                  <button
+                                    disabled={gradingLegId === l.id}
+                                    onClick={() => handleGradeLeg(l, null)}
+                                    className="grid size-5 place-items-center rounded border border-amber-500/40 text-[9px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-400"
+                                  >
+                                    V
+                                  </button>
                                 </span>
                               )}
                             </div>
@@ -509,9 +611,27 @@ export default function BetGameSettlementPage() {
                       <TableCell className="font-mono text-sm">{b.totalOdds.toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={betStatusStyle[b.status] ?? betStatusStyle.PENDING}>{b.status}</Badge>
+                        {b.legs.length > 1 && (() => {
+                          const w = b.legs.filter((l) => l.result === "WON").length;
+                          const l = b.legs.filter((l) => l.result === "LOST").length;
+                          const v = b.legs.filter((l) => l.result === "VOID").length;
+                          const p = b.legs.length - w - l - v;
+                          return (
+                            <div className="mt-1 text-[10px] text-muted-foreground">
+                              {w > 0 && <span className="text-emerald-600 dark:text-emerald-400">{w} won</span>}
+                              {w > 0 && (l + v + p > 0) && " · "}
+                              {l > 0 && <span className="font-semibold text-red-600 dark:text-red-400">{l} lost</span>}
+                              {l > 0 && (v + p > 0) && " · "}
+                              {v > 0 && <span className="text-amber-600 dark:text-amber-400">{v} push</span>}
+                              {v > 0 && p > 0 && " · "}
+                              {p > 0 && <span>{p} pending</span>}
+                              {l > 0 && <div className="text-red-600 dark:text-red-400">a lost leg kills the ticket</div>}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="text-sm font-semibold">{b.status === "WON" ? `ETB ${money(b.potentialPayout)}` : b.status === "PENDING" ? <span className="text-muted-foreground">—</span> : b.status === "VOID" ? `ETB ${money(b.stake)}` : <span className="text-muted-foreground">0.00</span>}</div>
+                        <div className="text-sm font-semibold">{b.status === "WON" ? `ETB ${money(b.settledPayout || b.potentialPayout)}` : b.status === "PENDING" ? <span className="text-muted-foreground">—</span> : b.status === "VOID" ? `ETB ${money(b.settledPayout || b.stake)}` : <span className="text-muted-foreground">0.00</span>}</div>
                         {b.status === "WON" && <Badge variant="outline" className={`mt-1 ${payoutStyle[b.payoutStatus] ?? ""}`}>{b.payoutStatus}</Badge>}
                         {b.status === "PENDING" && b.projectedResult !== "UNKNOWN" && (
                           <div className="mt-1 text-[10px] text-muted-foreground">Provisional: {b.projectedResult} {b.projectedResult === "WON" ? `ETB ${money(b.projectedPayout)}` : ""}</div>

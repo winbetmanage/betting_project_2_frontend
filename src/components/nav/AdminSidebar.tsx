@@ -24,6 +24,7 @@ import {
   Star,
   ReceiptText,
   Banknote,
+  Bell,
 } from "lucide-react";
 
 import {
@@ -45,6 +46,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 
 const mainItems = [
   { key: "dashboard", title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+  { key: "notifications", title: "Notifications", url: "/admin/notifications", icon: Bell },
   { key: "games", title: "Games", url: "/admin/games", icon: Trophy },
   { key: "bets", title: "Bets", url: "/admin/bets", icon: Ticket },
   { key: "bet-games", title: "Bet Games", url: "/admin/bet-games", icon: ReceiptText },
@@ -67,6 +69,7 @@ const usersItems = [
 // Detail pages (/admin/games/<id>) count as "active-games".
 function activeKeyFor(pathname: string): string {
   if (pathname === "/admin" || pathname === "/admin/") return "dashboard";
+  if (pathname.startsWith("/admin/notifications")) return "notifications";
   if (pathname.startsWith("/admin/games/active")) return "active-games";
   if (pathname.startsWith("/admin/games/ended")) return "ended-games";
   if (/^\/admin\/games\/[^/]+$/.test(pathname)) return "active-games"; // game detail page
@@ -84,6 +87,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/fetch-games/champions-league")) return "champions-league";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
   if (pathname.startsWith("/admin/settings/theme")) return "theme";
+  if (pathname.startsWith("/admin/settings/general")) return "general";
   if (pathname.startsWith("/admin/settings/transfer-accounts")) return "transfer-accounts";
   if (pathname.startsWith("/admin/sensitive/clear-game-data")) return "clear-game-data";
   if (pathname.startsWith("/admin/profile")) return "profile";
@@ -304,10 +308,14 @@ export function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="General Settings" className="text-white/30 cursor-not-allowed opacity-60">
+                <SidebarMenuButton
+                  render={<Link href="/admin/settings/general" />}
+                  isActive={activeKey === "general"}
+                  tooltip="General Settings"
+                  className={itemClass("general")}
+                >
                   <Settings className="size-4" />
                   <span>General Settings</span>
-                  <span className="ml-auto text-[10px] opacity-50 group-data-[collapsible=icon]:hidden">soon</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

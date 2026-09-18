@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserCircle, Wallet, ChevronDown } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import MobileMenu from "./MobileMenu";
 
 export default function UserNav() {
@@ -114,7 +115,9 @@ export default function UserNav() {
           </div>
           <div className="h-4 w-px bg-white/10 hidden sm:block" />
           {authed ? (
-            <DropdownMenu>
+            <>
+              <NotificationBell scope="user" allHref="/notifications" />
+              <DropdownMenu>
               <DropdownMenuTrigger
                 render={
                   <button className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 transition hover:bg-white/10">
@@ -153,6 +156,7 @@ export default function UserNav() {
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
+            </>
           ) : (
             <div className="flex items-center gap-2">
               <Link

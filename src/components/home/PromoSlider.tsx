@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HeroBackground } from "./HeroBackground";
 
 const slides = [
   {
@@ -49,6 +50,7 @@ export default function PromoSlider() {
 
   return (
     <div className="relative overflow-hidden rounded-xl bg-[#0a0f2e]">
+      <HeroBackground intervalMs={8000} imgClassName="opacity-30" />
       <AnimatePresence initial={false} custom={dir} mode="wait">
         <motion.div
           key={slides[index].id}
@@ -61,11 +63,6 @@ export default function PromoSlider() {
           className="relative"
         >
           <div className={`absolute inset-0 bg-gradient-to-r ${slides[index].gradient} z-10`} />
-          <img
-            src="/assets/website_images/bgimage.jpg"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-30"
-          />
           <div className="relative z-20 flex items-center justify-between p-4 sm:p-6 min-h-[120px]">
             <div>
               <p className="text-xs font-bold tracking-widest text-[#ff8c00]">

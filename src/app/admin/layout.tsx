@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { Separator } from "@/components/ui/separator";
 import { ApiStatus } from "@/components/admin/ApiStatus";
 import { ThemeToggle } from "@/components/admin/ThemeToggle";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ResponsiveTables } from "@/components/admin/ResponsiveTables";
 
 export const metadata = { title: "Admin · Tana Betting" };
@@ -30,6 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold tracking-wide text-white">ADMIN</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <NotificationBell scope="admin" allHref="/admin/notifications" />
               <ThemeToggle />
               <ApiStatus variant="nav" />
               <span className="hidden text-xs text-white/40 sm:inline">Press ⌘B to toggle</span>

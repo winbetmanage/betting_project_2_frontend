@@ -7,6 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 import { TeamLogo } from "@/components/TeamLogo";
+import { useBetSlip } from "@/components/bets/BetSlipProvider";
+import { isBettingWindowOpen, timeRemaining } from "@/lib/timeRemaining";
 import { ArrowLeft, Clock, Calendar, Trophy, CheckCircle2, XCircle, Minus, ShieldAlert } from "lucide-react";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
@@ -27,10 +29,8 @@ export default function GameDetailPage() {
   const id = params?.id as string;
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(true);
-  const [picked, setPicked] = useState<(Selection & { marketName: string }) | null>(null);
-  const [stake, setStake] = useState("10");
-  const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState<string | null>(null);
+  const slip = useBetSlip();
 
   useEffect(() => {
     const t = getAccessToken();
@@ -50,28 +50,27 @@ export default function GameDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const placeBet = async () => {
-    if (!picked) return;
-    const token = getAccessToken();
-    if (!token) {
-      toast.error("Please sign in to place a bet");
+  useEffect(() => {
+    const onPlaced = (e: Event) => setPlaced((e as CustomEvent).detail as string);
+    window.addEventListener("tana:bet-placed", onPlaced);
+    return () => window.removeEventListener("tana:bet-placed", onPlaced);
+  }, []);
+
+  const togglePick = (sel: Selection, market: Market) => {
+    if (!game) return;
+    if (!isBettingWindowOpen(game.startTime, game.status)) {
+      toast.error("Betting window closed — kickoff is within 15 minutes");
       return;
     }
-    setPlacing(true);
-    try {
-      const res = await api.post<{ data: { id: string } }>(
-        "/bets",
-        { stake: Number(stake), selections: [{ selectionId: picked.id, odds: Number(picked.odds) }] },
-        token
-      );
-      setPlaced(res.data.id);
-      setPicked(null);
-      toast.success("Bet placed!");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not place bet");
-    } finally {
-      setPlacing(false);
-    }
+    slip.toggle({
+      selectionId: sel.id,
+      gameId: game.id,
+      gameLabel: `${game.homeTeam} vs ${game.awayTeam}`,
+      marketId: market.id,
+      marketName: market.name,
+      selectionName: sel.name,
+      odds: Number(sel.odds),
+    });
   };
 
   if (loading) {
@@ -95,8 +94,10 @@ export default function GameDetailPage() {
   }
 
   const unavailable = !game.isPublished || !["SCHEDULED", "LIVE", "SUSPENDED"].includes(game.status);
+  const windowClosed = !unavailable && !isBettingWindowOpen(game.startTime, game.status);
+  const countdown = timeRemaining(game.startTime);
   const openMarkets = game.markets?.filter((m) => m.status === "OPEN" && m.selections?.length > 0) ?? [];
-  const potentialReturn = picked ? Number(stake || 0) * Number(picked.odds) : 0;
+  const slipLegsHere = slip.legs.filter((l) => l.gameId === game.id);
 
   return (
     <div className="space-y-6">
@@ -147,6 +148,11 @@ export default function GameDetailPage() {
           <ShieldAlert className="mt-0.5 size-5 shrink-0" />
           <span>This game isn&apos;t accepting bets right now (not published or already finished).</span>
         </div>
+      ) : windowClosed ? (
+        <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-300">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0" />
+          <span>Betting window closed — kickoff {countdown.text} (cutoff is 15 minutes before start).</span>
+        </div>
       ) : openMarkets.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/60">
           Odds aren&apos;t available yet for this game. Please check back later.
@@ -161,15 +167,18 @@ export default function GameDetailPage() {
                 <div className="border-b border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80">{market.name}</div>
                 <div className="grid gap-px bg-white/5 sm:grid-cols-3">
                   {market.selections.map((sel) => {
-                    const active = picked?.id === sel.id;
+                    const active = slip.has(sel.id);
                     return (
                       <button
                         key={sel.id}
-                        onClick={() => setPicked({ ...sel, marketName: market.name })}
+                        onClick={() => togglePick(sel, market)}
                         className={`flex items-center justify-between px-4 py-3 text-sm transition ${active ? "bg-primary/40 text-white" : "bg-white/5 hover:bg-white/10"}`}
                       >
                         <span className="font-medium">{sel.name}</span>
-                        <span className={`font-bold ${active ? "text-primary-light" : "text-secondary"}`}>{Number(sel.odds).toFixed(2)}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className={`font-bold ${active ? "text-primary-light" : "text-secondary"}`}>{Number(sel.odds).toFixed(2)}</span>
+                          {active && <span className="grid size-4 place-items-center rounded-full bg-secondary text-[10px] font-black text-white">✓</span>}
+                        </span>
                       </button>
                     );
                   })}
@@ -178,53 +187,35 @@ export default function GameDetailPage() {
             ))}
           </div>
 
-          {/* Bet slip */}
+          {/* Bet slip summary (placement happens in the slip panel, bottom-right / bottom bar) */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="text-xs font-semibold tracking-widest text-white/50">BET SLIP</div>
-            {picked ? (
-              <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold">{picked.name}</div>
-                    <div className="text-xs text-white/50">
-                      {picked.marketName} • {game.homeTeam} vs {game.awayTeam}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-semibold tracking-widest text-white/50">BET SLIP</div>
+              {slip.count > 0 && (
+                <span className="min-w-0 text-xs text-white/60">
+                  {slip.count} selection{slip.count === 1 ? "" : "s"} · odds {slip.totalOdds.toFixed(2)} · possible return ETB {slip.potentialPayout.toFixed(2)}
+                </span>
+              )}
+            </div>
+            {slipLegsHere.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {slipLegsHere.map((l) => (
+                  <div key={l.selectionId} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{l.selectionName}</div>
+                      <div className="text-xs text-white/50">{l.marketName}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="font-bold text-secondary">@ {l.odds.toFixed(2)}</span>
+                      <button onClick={() => slip.remove(l.selectionId)} className="text-xs text-white/40 hover:text-white">
+                        Remove
+                      </button>
                     </div>
                   </div>
-                  <span className="font-bold text-secondary">@ {Number(picked.odds).toFixed(2)}</span>
-                </div>
-                <button onClick={() => setPicked(null)} className="mt-2 text-xs text-white/40 hover:text-white">
-                  Remove
-                </button>
+                ))}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-white/40">Tap an odds button above to add a pick.</p>
-            )}
-
-            {picked && (
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <label className="text-xs text-white/50">Stake</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.5"
-                    value={stake}
-                    onChange={(e) => setStake(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none focus:border-secondary"
-                  />
-                </div>
-                <div className="sm:w-48">
-                  <div className="text-xs text-white/50">Potential return</div>
-                  <div className="mt-1 text-lg font-bold text-secondary">ETB {potentialReturn.toFixed(2)}</div>
-                </div>
-                <button
-                  onClick={placeBet}
-                  disabled={placing || !stake || Number(stake) <= 0}
-                  className="rounded-lg bg-secondary px-6 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-secondary/90 disabled:opacity-50"
-                >
-                  {placing ? "Placing..." : "Place bet"}
-                </button>
-              </div>
+              <p className="mt-3 text-sm text-white/40">Tap an odds button to add a pick. Combine markets from the same or different games (one pick per market, max 15) — you&apos;ll confirm a receipt before the bet goes in.</p>
             )}
           </div>
         </>

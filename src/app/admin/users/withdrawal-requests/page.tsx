@@ -162,10 +162,29 @@ export default function WithdrawalRequestsPage() {
   };
 
   const handleApprove = async (id: string) => {
+    if (!txId.trim()) {
+      toast.error("Transaction ID is required to approve");
+      return;
+    }
+    if (!proofFile) {
+      toast.error("Completion proof image is required to approve");
+      return;
+    }
     setBusy("approve");
     try {
-      const res = await api.post<{ message: string }>(`/funds/admin/requests/${id}/approve`, {}, getAccessToken() ?? token);
-      toast.success(res.message || "Request approved");
+      const fd = new FormData();
+      fd.append("transactionId", txId.trim());
+      fd.append("completionProof", proofFile);
+      const t = getAccessToken() ?? token;
+      const res = await fetch(`/api/v1/funds/admin/requests/${id}/approve`, {
+        method: "POST",
+        headers: t ? { Authorization: `Bearer ${t}` } : undefined,
+        body: fd,
+      });
+      const json = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new ApiError(res.status, json.message || "Approve failed");
+      toast.success(json.message || "Request approved and payment recorded");
+      setProofFile(null);
       await refreshDetail(id);
       await load();
     } catch (e) {
@@ -176,9 +195,13 @@ export default function WithdrawalRequestsPage() {
   };
 
   const handleReject = async (id: string) => {
+    if (!rejectReason.trim()) {
+      toast.error("A rejection reason is required");
+      return;
+    }
     setBusy("reject");
     try {
-      const res = await api.post<{ message: string }>(`/funds/admin/requests/${id}/reject`, { reason: rejectReason }, getAccessToken() ?? token);
+      const res = await api.post<{ message: string }>(`/funds/admin/requests/${id}/reject`, { reason: rejectReason.trim() }, getAccessToken() ?? token);
       toast.success(res.message || "Request rejected");
       setRejectReason("");
       await refreshDetail(id);
@@ -403,30 +426,53 @@ export default function WithdrawalRequestsPage() {
 
               <Separator className="bg-border" />
 
-              {/* PENDING → approve / reject */}
+              {/* PENDING → pay out manually, then approve with evidence in one step */}
               {detail.status === "PENDING" && (
                 <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                  <div className="text-sm font-semibold text-amber-600 dark:text-amber-400">Action required</div>
+                  <div className="text-sm font-semibold text-amber-600 dark:text-amber-400">Approve after paying out</div>
+                  <p className="text-xs text-muted-foreground">Transfer the money outside the app first. Approving deducts the balance, writes the ledger entry and completes the request — transaction ID and proof screenshot are both required.</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="approveTxId">Transaction ID *</Label>
+                      <Input id="approveTxId" placeholder="e.g. CBE-8829100" value={txId} onChange={(e) => setTxId(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="approveProof">Completion proof image *</Label>
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="approveProof" className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 text-xs font-medium text-muted-foreground hover:bg-muted">
+                          <Paperclip className="size-3.5" /> {proofFile ? proofFile.name : "Choose image…"}
+                        </label>
+                        <input
+                          id="approveProof"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500" disabled={busy !== ""} onClick={() => handleApprove(detail.id)}>
-                      {busy === "approve" ? <RefreshCw className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Approve
+                    <Button size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500" disabled={busy !== "" || !txId.trim() || !proofFile} onClick={() => handleApprove(detail.id)}>
+                      {busy === "approve" ? <RefreshCw className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Approve & record payment
                     </Button>
                   </div>
+                  <Separator className="bg-border" />
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Rejection reason (optional)</Label>
+                    <Label className="text-xs text-muted-foreground">Rejection reason *</Label>
                     <Textarea placeholder="Reason for rejecting…" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="min-h-16 text-sm" />
-                    <Button size="sm" variant="outline" className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10" disabled={busy !== ""} onClick={() => handleReject(detail.id)}>
-                      {busy === "reject" ? <RefreshCw className="size-4 animate-spin" /> : <XCircle className="size-4" />} Reject
+                    <Button size="sm" variant="outline" className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10" disabled={busy !== "" || !rejectReason.trim()} onClick={() => handleReject(detail.id)}>
+                      {busy === "reject" ? <RefreshCw className="size-4 animate-spin" /> : <XCircle className="size-4" />} Reject & release hold
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* APPROVED → record payment (also allows updating tx/proof later) */}
+              {/* APPROVED → payment record can still be corrected afterwards */}
               {detail.status === "APPROVED" && (
                 <div className="space-y-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
                   <div className="text-sm font-semibold text-sky-600 dark:text-sky-400">
-                    {detail.completedAt ? "Update payment record" : "Record the payment"}
+                    Payment record
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">

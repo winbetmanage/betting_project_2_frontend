@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { TrendingUp, ShieldCheck, Clock3 } from "lucide-react";
+import { HeroBackground } from "./HeroBackground";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
@@ -18,13 +19,8 @@ export default function MobileHero({ isGuest }: { isGuest: boolean }) {
 
   return (
     <section className="relative overflow-hidden rounded-b-xl bg-[#0a0f2e] shadow-lg shadow-blue-950/30 sm:hidden">
-      {/* Background image + gradient wash (same image as the login screen, lighter overlay) */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/assets/website_images/bgimage.jpg"
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover object-center opacity-45"
-      />
+      {/* Sliding background images + gradient wash */}
+      <HeroBackground imgClassName="opacity-45" intervalMs={6000} />
       <div className="absolute inset-0 bg-gradient-to-br from-[#0a0f2e]/70 via-[#0a0f2e]/50 to-[#16337a]/40" />
 
       {/* Ambient glow orbs */}
