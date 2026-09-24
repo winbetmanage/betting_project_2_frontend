@@ -2,6 +2,8 @@
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
+import { Printer } from "lucide-react";
 
 export type ReceiptLeg = {
   gameLabel: string;
@@ -38,10 +40,10 @@ function Barcode({ seed }: { seed: string }) {
   );
 }
 
-function legMark(result?: string | null) {
-  if (result === "WON") return <span className="font-bold text-green-600">✓ WON</span>;
-  if (result === "LOST") return <span className="font-bold text-red-600">✗ LOST</span>;
-  if (result === "VOID") return <span className="font-bold text-amber-600">● PUSH</span>;
+function legMark(result?: string | null, won = "WON", lost = "LOST", push = "PUSH") {
+  if (result === "WON") return <span className="font-bold text-green-600">✓ {won}</span>;
+  if (result === "LOST") return <span className="font-bold text-red-600">✗ {lost}</span>;
+  if (result === "VOID") return <span className="font-bold text-amber-600">● {push}</span>;
   if (result) return <span className="text-slate-400">· {result}</span>;
   return null;
 }
@@ -66,6 +68,7 @@ export function buildReceipt(
 
 /** Paper-receipt presentation of a ticket — used for pre-place confirmation and My Bets detail. */
 export function BetReceipt({ data, stamp }: { data: ReceiptData; stamp?: string }) {
+  const t = useTranslations("home");
   const status = data.status ?? "PENDING";
   const stampColor = status === "WON" ? "border-green-600 text-green-700" : status === "LOST" ? "border-red-600 text-red-600" : status === "VOID" ? "border-amber-600 text-amber-700" : "border-slate-400 text-slate-500";
   return (
@@ -73,31 +76,31 @@ export function BetReceipt({ data, stamp }: { data: ReceiptData; stamp?: string 
       {/* perforated top */}
       <div className="h-2 bg-[radial-gradient(circle_at_5px_0,transparent_5px,#fff_5.5px)] bg-[length:12px_12px]" />
       <div className="px-5 pb-5 pt-1">
-        <div className="text-center">
+        <div className="text-center bet-print-block">
           <div className="text-sm font-black tracking-[0.25em]">TANA BETTING</div>
-          <div className="mt-0.5 text-[10px] tracking-[0.3em] text-slate-500">{stamp ?? (data.id ? "BET RECEIPT" : "BET SLIP — CONFIRM TO PLACE")}</div>
+          <div className="mt-0.5 text-[10px] tracking-[0.3em] text-slate-500">{stamp ?? (data.id ? t("receiptTitle") : t("slipConfirmTitle"))}</div>
           {data.id && <div className="mt-1 text-[10px] text-slate-400">#{data.id}</div>}
           {data.placedAt && <div className="text-[10px] text-slate-400">{new Date(data.placedAt).toLocaleString()}</div>}
         </div>
 
         <div className="my-3 border-t border-dashed border-slate-300" />
 
-        <div className="flex items-center justify-between">
-          <span className="uppercase tracking-widest text-slate-500">ticket</span>
-          <span className="font-bold">{data.type === "SINGLE" ? "SINGLE" : `MULTIPLE · ${data.legs.length} legs`}</span>
+        <div className="flex items-center justify-between bet-print-block">
+          <span className="uppercase tracking-widest text-slate-500">{t("ticketWord")}</span>
+          <span className="font-bold">{data.type === "SINGLE" ? t("single") : t("multipleLegs", { count: data.legs.length })}</span>
         </div>
 
         <div className="mt-2 space-y-2">
           {data.legs.map((l, i) => (
-            <div key={i}>
+            <div key={i} className="bet-print-row">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-bold uppercase">{l.selectionName}</span>
                 <span className="font-bold">@ {l.odds.toFixed(2)}</span>
               </div>
               <div className="truncate text-slate-500">{i + 1}. {l.marketName}</div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-slate-400">{l.gameLabel}</span>
-                {l.result ? legMark(l.result) : null}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-slate-400">{l.gameLabel}</span>
+                  {l.result ? legMark(l.result, t("wonShort"), t("lostShort"), t("pushShort")) : null}
               </div>
             </div>
           ))}
@@ -105,13 +108,13 @@ export function BetReceipt({ data, stamp }: { data: ReceiptData; stamp?: string 
 
         <div className="my-3 border-t border-dashed border-slate-300" />
 
-        <div className="space-y-1">
-          <div className="flex justify-between"><span className="text-slate-500">STAKE</span><span className="font-bold">ETB {data.stake.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">TOTAL ODDS</span><span className="font-bold">{data.totalOdds.toFixed(2)}</span></div>
-          <div className="flex justify-between text-sm"><span className="font-black uppercase">potential return</span><span className="font-black">ETB {data.potentialPayout.toFixed(2)}</span></div>
+        <div className="space-y-1 bet-print-block">
+          <div className="flex justify-between"><span className="text-slate-500">{t("stake")}</span><span className="font-bold">ETB {data.stake.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">{t("totalOdds").toUpperCase()}</span><span className="font-bold">{data.totalOdds.toFixed(2)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-black uppercase">{t("potentialReturns")}</span><span className="font-black">ETB {data.potentialPayout.toFixed(2)}</span></div>
           {data.settledPayout != null && status !== "PENDING" && (
             <div className="flex justify-between text-sm">
-              <span className="font-black uppercase">{status === "VOID" ? "refunded" : status === "WON" ? "paid out" : "payout"}</span>
+              <span className="font-black uppercase">{status === "VOID" ? t("refunded") : status === "WON" ? t("paidOut") : t("payoutWord")}</span>
               <span className="font-black">ETB {Number(data.settledPayout).toFixed(2)}</span>
             </div>
           )}
@@ -119,7 +122,7 @@ export function BetReceipt({ data, stamp }: { data: ReceiptData; stamp?: string 
 
         <div className="my-3 border-t border-dashed border-slate-300" />
 
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex items-end justify-between gap-3 bet-print-block">
           <div className="min-w-0 flex-1">
             <Barcode seed={data.id ?? `${data.legs.length}${data.stake}`} />
             <div className="mt-1 truncate text-center text-[9px] tracking-[0.3em] text-slate-400">{(data.id ?? "DRAFT").replace(/-/g, "").slice(0, 24).toUpperCase()}</div>
@@ -130,7 +133,7 @@ export function BetReceipt({ data, stamp }: { data: ReceiptData; stamp?: string 
         </div>
 
         <div className="mt-3 text-center text-[9px] text-slate-400">
-          Odds are frozen at placement. All legs must win — a push (void) leg pays at 1.00.
+          {t("receiptFinePrint")}
         </div>
       </div>
       {/* perforated bottom */}
@@ -143,10 +146,11 @@ export function BetReceiptDialog({
   open,
   onOpenChange,
   data,
-  confirmLabel = "Confirm & Place Bet",
-  cancelLabel = "Back to Slip",
+  confirmLabel,
+  cancelLabel,
   busy,
   onConfirm,
+  showPrint = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -155,29 +159,38 @@ export function BetReceiptDialog({
   cancelLabel?: string;
   busy?: boolean;
   onConfirm?: () => void;
+  showPrint?: boolean;
 }) {
+  const t = useTranslations("home");
+  const confirmText = confirmLabel ?? t("confirmPlace");
+  const cancelText = cancelLabel ?? t("backToSlip");
   if (!data) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-0 bg-[#f1f5f9] p-0">
         <DialogHeader className="sr-only">
-          <DialogTitle>Bet receipt</DialogTitle>
-          <DialogDescription>Review your ticket before placing.</DialogDescription>
+          <DialogTitle>{t("receiptDialogTitle")}</DialogTitle>
+          <DialogDescription>{t("receiptDialogDesc")}</DialogDescription>
         </DialogHeader>
-        <div className="max-h-[70vh] overflow-y-auto px-4 py-5">
+        <div id="bet-receipt-print" className="max-h-[70vh] overflow-y-auto px-4 py-5">
           <BetReceipt data={data} />
         </div>
         {onConfirm && (
           <DialogFooter className="border-t border-slate-200 bg-white px-4 py-3 sm:justify-between">
-            <span className="text-xs text-slate-500">{data.id ? "Save this receipt — it also lives in My Bets." : "Review the ticket above — balance is debited on confirm."}</span>
+            <span className="text-xs text-slate-500">{data.id ? t("receiptSavedNote") : t("receiptReviewNote")}</span>
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
-              {cancelLabel !== "" && (
+              {showPrint && (
+                <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto">
+                  <Printer className="size-4" /> {t("print")}
+                </Button>
+              )}
+              {cancelText !== "" && (
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy} className="w-full sm:w-auto">
-                  {cancelLabel}
+                  {cancelText}
                 </Button>
               )}
               <Button onClick={onConfirm} disabled={busy} className="w-full bg-secondary text-white hover:bg-secondary/90 sm:w-auto">
-                {busy ? "PLACING..." : confirmLabel}
+                {busy ? t("placing") : confirmText}
               </Button>
             </div>
           </DialogFooter>

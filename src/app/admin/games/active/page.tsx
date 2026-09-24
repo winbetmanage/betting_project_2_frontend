@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
-import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle, Flag, RefreshCw } from "lucide-react";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
 
 type GameScoreLite = {
@@ -61,6 +62,10 @@ export default function ActiveGamesPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [apiGame, setApiGame] = useState<Game | null>(null);
+  const [tab, setTab] = useState<"upcoming" | "passed">("upcoming");
+  const [now, setNow] = useState<Date>(() => new Date());
+  const [allGames, setAllGames] = useState<Game[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -76,21 +81,14 @@ export default function ActiveGamesPage() {
       if (s.trim()) params.set("search", s.trim());
       const res = await api.get<{ data: Game[] }>(`/games?${params.toString()}`, t);
       let all: Game[] = res.data ?? [];
-      all = all.filter((g) => ["SCHEDULED", "LIVE", "SUSPENDED"].includes(g.status));
       if (s.trim()) {
         const q = s.toLowerCase();
         all = all.filter((g) => `${g.homeTeam} ${g.awayTeam} ${g.competition?.name ?? ""} ${g.status}`.toLowerCase().includes(q));
       }
-      const totalFiltered = all.length;
-      setTotal(totalFiltered);
-      const tp = Math.max(1, Math.ceil(totalFiltered / l));
-      setTotalPages(tp);
-      const cur = Math.min(p, tp);
-      if (cur !== p) setPage(cur);
-      setGames(all.slice((cur - 1) * l, cur * l));
+      setAllGames(all);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load active games");
-      setGames([]);
+      toast.error(e instanceof Error ? e.message : "Failed to load games");
+      setAllGames([]);
     } finally {
       setLoading(false);
     }
@@ -111,6 +109,57 @@ export default function ActiveGamesPage() {
     load(page, search, limit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Upcoming = kickoff still ahead, plus unfinished live games. Anything whose
+  // start date has passed (and isn't live) moves to the Passed tab automatically.
+  const isUpcoming = (g: Game) =>
+    g.status !== "FINISHED" &&
+    g.status !== "CANCELLED" &&
+    (new Date(g.startTime).getTime() >= now.getTime() || g.status === "LIVE" || g.status === "SUSPENDED");
+
+  const upcomingGames = allGames
+    .filter(isUpcoming)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const passedGames = allGames
+    .filter((g) => !isUpcoming(g))
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  const tabGames = tab === "upcoming" ? upcomingGames : passedGames;
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(tabGames.length / limit));
+    setTotalPages(tp);
+    setTotal(tabGames.length);
+    const cur = Math.min(page, tp);
+    if (cur !== page) setPage(cur);
+    setGames(tabGames.slice((cur - 1) * limit, cur * limit));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGames, tab, page, limit, now]);
+
+  const switchTab = (v: string) => {
+    setTab(v as "upcoming" | "passed");
+    setPage(1);
+    setSelectedIds(new Set());
+  };
+
+  const handleRefreshTimes = async () => {
+    const t = getAccessToken() ?? token;
+    setRefreshing(true);
+    try {
+      const res = await api.post<{ message: string }>("/games/refresh-times", {}, t);
+      toast.success(res.message || "Kickoff times refreshed");
+      await load(1, search, limit);
+      setPage(1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Refresh failed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Clear selections whenever the visible list changes
   useEffect(() => {
@@ -188,18 +237,52 @@ export default function ActiveGamesPage() {
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Trophy className="size-6 text-primary" /> Active Games
         </h1>
-        <p className="text-sm text-muted-foreground">Upcoming, live and suspended games from the Game table — waiting or playing now.</p>
+        <p className="text-sm text-muted-foreground">Upcoming and passed games from the Game table — kickoff ahead or live vs already gone.</p>
       </div>
 
+      <Tabs value={tab} onValueChange={switchTab}>
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-3 bg-transparent p-0 sm:grid-cols-2">
+          <TabsTrigger
+            value="upcoming"
+            className="h-auto flex-col items-start gap-1 rounded-xl border border-border bg-card px-4 py-3 text-left shadow-sm data-[active=true]:border-secondary data-[active=true]:bg-secondary/10 data-[active=true]:shadow-none"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <Clock className="size-4 text-secondary" /> Upcoming Games
+              <Badge variant="secondary" className="bg-secondary/15 text-secondary border-secondary/20">
+                {upcomingGames.length}
+              </Badge>
+            </span>
+            <span className="text-[11px] font-normal text-muted-foreground">Kickoff ahead, plus unfinished live games</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="passed"
+            className="h-auto flex-col items-start gap-1 rounded-xl border border-border bg-card px-4 py-3 text-left shadow-sm data-[active=true]:border-primary data-[active=true]:bg-primary/10 data-[active=true]:shadow-none"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <Flag className="size-4 text-primary" /> Passed Games
+              <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/20">
+                {passedGames.length}
+              </Badge>
+            </span>
+            <span className="text-[11px] font-normal text-muted-foreground">Start date gone or finished</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={tab}>
       <Card className="border-border bg-card shadow-sm">
         <CardHeader className="border-b border-border">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Clock className="size-5 text-primary" /> Active
+            {tab === "upcoming" ? <Clock className="size-5 text-secondary" /> : <Flag className="size-5 text-primary" />}
+            {tab === "upcoming" ? "Upcoming" : "Passed"}
             <Badge variant="secondary" className="ml-2 bg-secondary/15 text-secondary border-secondary/20">
               {total} total
             </Badge>
           </CardTitle>
-          <CardDescription>SCHEDULED, LIVE or SUSPENDED — not yet finished. Toggle publish and view details.</CardDescription>
+          <CardDescription>
+            {tab === "upcoming"
+              ? "Kickoff still ahead, plus unfinished live games — Toggle publish and view details."
+              : "Start date already passed or finished — Toggle publish and view details."}
+          </CardDescription>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1 sm:max-w-sm">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -221,6 +304,16 @@ export default function ActiveGamesPage() {
                   <Trash2 className="size-4" /> Delete ({selectedCount})
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 border-primary/20 text-primary hover:bg-primary/10"
+                onClick={handleRefreshTimes}
+                disabled={refreshing}
+                title="Re-check kickoff times from The Odds API and football-data.org and update changed ones"
+              >
+                <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> {refreshing ? "Refreshing..." : "Refresh times"}
+              </Button>
               <span className="text-xs text-muted-foreground hidden sm:inline">Rows</span>
               <Select value={String(limit)} onValueChange={(v) => { setLimit(Number(v)); setPage(1); }}>
                 <SelectTrigger className="w-[90px] h-9">
@@ -244,8 +337,10 @@ export default function ActiveGamesPage() {
           ) : games.length === 0 ? (
             <div className="py-16 text-center">
               <Trophy className="mx-auto size-10 text-muted-foreground/30" />
-              <p className="mt-3 text-sm font-medium">No active games</p>
-              <p className="text-xs text-muted-foreground">All games are finished or none match your search</p>
+              <p className="mt-3 text-sm font-medium">{tab === "upcoming" ? "No upcoming games" : "No passed games"}</p>
+              <p className="text-xs text-muted-foreground">
+                {tab === "upcoming" ? "All kickoffs have passed or none match your search" : "Nothing has finished or passed yet"}
+              </p>
             </div>
           ) : (
             <>
@@ -476,6 +571,8 @@ export default function ActiveGamesPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-[440px] bg-card">

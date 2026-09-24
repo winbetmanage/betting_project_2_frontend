@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBetSlip } from "./BetSlipProvider";
+import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "./BetReceipt";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
@@ -16,6 +17,8 @@ import { X, ChevronDown, ChevronUp, Ticket, Trash2 } from "lucide-react";
  * first, then a placed-receipt.
  */
 export function BetSlipPanel() {
+  const t = useTranslations("home");
+  const tNav = useTranslations("nav");
   const pathname = usePathname();
   const slip = useBetSlip();
   const [open, setOpen] = useState(true);
@@ -25,17 +28,17 @@ export function BetSlipPanel() {
   const [maxStake, setMaxStake] = useState<number | null>(null);
 
   useEffect(() => {
-    const t = getAccessToken();
-    if (!t) return;
+    const tok = getAccessToken();
+    if (!tok) return;
     api
-      .get<{ data: { maxStake: number | null } }>("/settings/max-stake", t)
+      .get<{ data: { maxStake: number | null } }>("/settings/max-stake", tok)
       .then((r) => setMaxStake(r.data?.maxStake ?? null))
       .catch(() => setMaxStake(null));
   }, []);
 
   const openConfirm = () => {
     if (maxStake != null && Number(slip.stake || 0) > maxStake) {
-      toast.error(`Maximum stake per bet is ETB ${maxStake.toLocaleString("en-US")}`);
+      toast.error(t("maxStake", { amount: maxStake.toLocaleString("en-US") }));
       return;
     }
     setConfirmData(buildReceipt(slip.legs, Number(slip.stake || 0), { existingOddsTotal: slip.totalOdds }));
@@ -47,12 +50,12 @@ export function BetSlipPanel() {
     const res = await slip.place();
     setBusy(false);
     if (res.betId) {
-      toast.success(`Bet placed! ID: ${res.betId.slice(0, 8)}`);
+      toast.success(t("betPlacedId", { id: res.betId.slice(0, 8) }));
       window.dispatchEvent(new CustomEvent("tana:bet-placed", { detail: res.betId }));
       setPlacedData({ ...confirmData, id: res.betId, placedAt: new Date().toISOString() });
       setConfirmData(null);
     } else {
-      toast.error(res.error ?? "Could not place bet");
+      toast.error(res.error ?? t("couldNotPlace"));
       setConfirmData(null);
     }
   };
@@ -69,9 +72,9 @@ export function BetSlipPanel() {
           >
             <span className="flex items-center gap-2">
               <Ticket className="size-4" />
-              BET SLIP
+              {t("betSlip")}
               <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{slip.count}</span>
-              {slip.count > 1 && <span className="text-[10px] font-semibold uppercase opacity-80">multiple · {slip.totalOdds.toFixed(2)}</span>}
+              {slip.count > 1 && <span className="text-[10px] font-semibold uppercase opacity-80">{t("multiple")} · {slip.totalOdds.toFixed(2)}</span>}
             </span>
             {open ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           </button>
@@ -89,7 +92,7 @@ export function BetSlipPanel() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="font-bold text-secondary">@ {l.odds.toFixed(2)}</span>
-                      <button onClick={() => slip.remove(l.selectionId)} className="grid size-7 place-items-center text-white/40 hover:text-red-400" aria-label="Remove selection">
+                      <button onClick={() => slip.remove(l.selectionId)} className="grid size-7 place-items-center text-white/40 hover:text-red-400" aria-label={t("removeSelection")}>
                         <X className="size-4" />
                       </button>
                     </div>
@@ -104,7 +107,7 @@ export function BetSlipPanel() {
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <label className="text-[10px] font-bold tracking-widest text-white/50">
-                    STAKE (ETB){maxStake != null && ` · MAX ${maxStake.toLocaleString("en-US")}`}
+                    {t("stake")} (ETB){maxStake != null && ` · MAX ${maxStake.toLocaleString("en-US")}`}
                   </label>
                   <input
                     type="number"
@@ -119,7 +122,7 @@ export function BetSlipPanel() {
                 <button
                   onClick={() => slip.clear()}
                   className="grid size-10 shrink-0 place-items-center rounded-lg border border-white/15 text-white/50 hover:text-red-400"
-                  aria-label="Clear slip"
+                  aria-label={t("clearSlip")}
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -127,11 +130,11 @@ export function BetSlipPanel() {
 
               <div className="space-y-1 rounded-lg bg-white/5 p-2.5 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-white/50">{slip.count > 1 ? `Multiple (${slip.count} legs)` : "Single"}</span>
+                  <span className="text-white/50">{slip.count > 1 ? t("multipleLegs", { count: slip.count }) : t("single")}</span>
                   <span className="font-mono">{slip.totalOdds.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/50">Potential return</span>
+                  <span className="text-white/50">{t("potentialReturns")}</span>
                   <span className="font-bold text-secondary">ETB {slip.potentialPayout.toFixed(2)}</span>
                 </div>
               </div>
@@ -141,10 +144,10 @@ export function BetSlipPanel() {
                 disabled={busy || slip.placing || !(Number(slip.stake) > 0)}
                 className="w-full rounded-lg bg-secondary py-3 text-sm font-bold tracking-wide text-white shadow-md transition hover:bg-secondary/90 disabled:opacity-50"
               >
-                {busy || slip.placing ? "PLACING..." : `REVIEW ${slip.count > 1 ? "PARLAY" : "BET"}`}
+                {busy || slip.placing ? t("placing") : t("reviewBet", { kind: slip.count > 1 ? t("parlay") : t("betWord") })}
               </button>
               <p className="text-center text-[10px] text-white/35">
-                You&apos;ll confirm a receipt before it goes in — <Link href="/my-bets" className="underline hover:text-white/70">My Bets</Link>
+                {t("confirmReceiptNote")} <Link href="/my-bets" className="underline hover:text-white/70">{tNav("myBets")}</Link>
               </p>
             </div>
           )}
@@ -162,7 +165,7 @@ export function BetSlipPanel() {
         open={!!placedData}
         onOpenChange={(o) => { if (!o) setPlacedData(null); }}
         data={placedData}
-        confirmLabel="Done"
+        confirmLabel={t("done")}
         cancelLabel=""
         onConfirm={() => setPlacedData(null)}
       />

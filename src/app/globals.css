@@ -199,3 +199,35 @@
     min-width: 0;
   }
 }
+
+/* Bet receipt printing - single A4 flow: two columns split by a vertical rule.
+   Only applies while a ticket dialog is open. The dialog popup is expanded
+   to the full page, chrome (header/footer/overlay/close) is removed, and the
+   ticket flows in two columns split by a vertical rule: column 1 fills
+   top-to-bottom, then column 2, then the next page. */
+@media print {
+  @page { size: A4 portrait; margin: 10mm 12mm; }
+  body:has(#bet-receipt-print) * { visibility: hidden; }
+  body:has(#bet-receipt-print) [data-slot="dialog-content"] {
+    position: absolute; top: 0; left: 0; transform: none; translate: none;
+    display: block; width: 100%; max-width: none; height: auto; max-height: none;
+    margin: 0; padding: 0; border: 0; border-radius: 0;
+    background: #fff; color: #000; overflow: visible;
+  }
+  body:has(#bet-receipt-print) [data-slot="dialog-overlay"],
+  body:has(#bet-receipt-print) [data-slot="dialog-footer"],
+  body:has(#bet-receipt-print) [data-slot="dialog-close"],
+  body:has(#bet-receipt-print) [data-slot="dialog-header"] { display: none; }
+  #bet-receipt-print, #bet-receipt-print * { visibility: visible; }
+  #bet-receipt-print {
+    max-height: none; overflow: visible;
+    background: #fff; color: #000;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+    column-count: 2; column-gap: 10mm;
+    column-rule: 1.5px solid #666;
+    column-fill: auto;
+  }
+  #bet-receipt-print > div { max-width: none; box-shadow: none; margin: 0; }
+  #bet-receipt-print .bet-print-block { break-inside: avoid; }
+  #bet-receipt-print .bet-print-row { break-inside: avoid; }
+}

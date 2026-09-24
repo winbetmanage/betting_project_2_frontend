@@ -6,6 +6,7 @@ import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import { api } from "@/lib/api";
 import { isAuthenticated, setSession, type AuthUser } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 function UserIcon() {
@@ -34,6 +35,7 @@ function LockIcon() {
 
 export default function SignupPage() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,8 +94,8 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Join thousands of fans betting smarter"
+      title={t("createAccount")}
+      subtitle={t("signupSubtitle")}
       tagline="Instant sign-up · No hidden fees"
     >
       <form
@@ -108,7 +110,7 @@ export default function SignupPage() {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-white/80" htmlFor="name">
-            Name
+            {t("name")}
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
@@ -128,7 +130,7 @@ export default function SignupPage() {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-white/80" htmlFor="email">
-            Email
+            {t("email")}
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
@@ -148,7 +150,7 @@ export default function SignupPage() {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-white/80" htmlFor="password">
-            Password
+            {t("password")}
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2">
@@ -171,10 +173,10 @@ export default function SignupPage() {
           <p className="rounded-lg border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-xs text-primary-light">
             {refName ? (
               <>
-                You were referred by <span className="font-bold">{refName}</span>.
+                {t("referredBy")} <span className="font-bold">{refName}</span>.
               </>
             ) : (
-              <>Referral code <span className="font-bold">{refCode}</span> wasn&rsquo;t recognized — you can still sign up.</>
+              <>{t("referralCode")} <span className="font-bold">{refCode}</span> {t("badRefCode")}</>
             )}
           </p>
         )}
@@ -184,13 +186,13 @@ export default function SignupPage() {
           disabled={loading}
           className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Creating account..." : "Create account"}
+          {loading ? t("signingUp") : t("createAccount")}
         </button>
 
         <p className="text-center text-sm text-white/60">
-          Already have an account?{" "}
+          {t("haveAccount")}{" "}
           <Link href="/login" className="font-semibold text-primary-light underline-offset-4 hover:underline">
-            Sign in
+            {t("signin")}
           </Link>
         </p>
       </form>

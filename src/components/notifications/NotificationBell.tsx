@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,14 +22,14 @@ export type UINotification = {
   createdAt: string;
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: (key: string, vals?: Record<string, string | number>) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return "just now";
+  if (diff < 60000) return t("justNow");
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t("minAgo", { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return t("hrAgo", { n: hrs });
+  return t("dayAgo", { n: Math.floor(hrs / 24) });
 }
 
 /**
@@ -36,6 +37,7 @@ function timeAgo(iso: string): string {
  * scope "user" reads the personal feed, "admin" the shared admin feed.
  */
 export function NotificationBell({ scope, allHref, className }: { scope: "user" | "admin"; allHref: string; className?: string }) {
+  const t = useTranslations("notifications");
   const router = useRouter();
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<UINotification[]>([]);
@@ -104,7 +106,7 @@ export function NotificationBell({ scope, allHref, className }: { scope: "user" 
       <button
         onClick={() => setOpen((o) => !o)}
         className="relative grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
-        aria-label="Notifications"
+        aria-label={t("notifications")}
       >
         <Bell className="size-4" />
         {unread > 0 && (
@@ -117,14 +119,14 @@ export function NotificationBell({ scope, allHref, className }: { scope: "user" 
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/10 bg-[#0a0f2e] text-white shadow-2xl">
           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-            <span className="text-xs font-semibold">Notifications{unread > 0 ? ` (${unread} unread)` : ""}</span>
+            <span className="text-xs font-semibold">{t("notifications")}{unread > 0 ? ` (${t("unreadN", { n: unread })})` : ""}</span>
             <Link href={allHref} onClick={() => setOpen(false)} className="text-[11px] text-primary-light hover:underline">
-              View all
+              {t("viewAll")}
             </Link>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {items.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-white/40">No notifications yet.</div>
+              <div className="px-3 py-6 text-center text-xs text-white/40">{t("noNotifYet")}</div>
             ) : (
               items.map((n) => (
                 <button
@@ -137,7 +139,7 @@ export function NotificationBell({ scope, allHref, className }: { scope: "user" 
                     <span className="block truncate text-xs font-semibold">{n.title}</span>
                     {n.message && <span className="block truncate text-[11px] text-white/50">{n.message}</span>}
                     <span className="mt-0.5 block text-[10px] text-white/30">
-                      {n.user?.email ? `${n.user.email} · ` : ""}{timeAgo(n.createdAt)}
+                      {n.user?.email ? `${n.user.email} · ` : ""}{timeAgo(n.createdAt, t)}
                     </span>
                   </span>
                 </button>

@@ -7,11 +7,8 @@ import {
   LayoutDashboard,
   Link2,
   Users,
-  Gift,
   Bell,
   Briefcase,
-  Globe,
-  ArrowUpRight,
 } from "lucide-react";
 
 import {
@@ -35,8 +32,7 @@ const mainItems = [
   { key: "dashboard", title: "Dashboard", url: "/agent", icon: LayoutDashboard },
   { key: "referral-link", title: "Referral Link", url: "/agent#referral-link", icon: Link2 },
   { key: "referred-users", title: "Referred Users", url: "/agent#referred-users", icon: Users },
-  { key: "bonus-history", title: "Bonus History", url: "/agent#bonus-history", icon: Gift },
-  { key: "activity", title: "Activity", url: "/agent#activity", icon: Bell },
+  { key: "activity", title: "Activity", url: "/agent/activity", icon: Bell },
 ];
 
 export function AgentSidebar() {
@@ -51,7 +47,12 @@ export function AgentSidebar() {
     return () => window.removeEventListener("hashchange", sync);
   }, [pathname]);
 
-  const activeKey = pathname === "/agent" ? (hash || "dashboard") : "dashboard";
+  const activeKey =
+    pathname === "/agent" || pathname === "/agent/"
+      ? (hash && hash !== "dashboard" ? hash : "dashboard")
+      : pathname.startsWith("/agent/activity")
+        ? "activity"
+        : "dashboard";
 
   const itemClass = (key: string) =>
     activeKey === key
@@ -112,21 +113,6 @@ export function AgentSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">SYSTEM</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/" />} tooltip="View Site" className="text-white/50 hover:bg-white/5 hover:text-white/80">
-                  <Globe className="size-4" />
-                  <span>View Site</span>
-                  <ArrowUpRight className="ml-auto size-3 opacity-60 group-data-[collapsible=icon]:hidden" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

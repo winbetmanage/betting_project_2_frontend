@@ -29,8 +29,10 @@ import {
   XCircle,
   RefreshCw,
 } from "lucide-react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
+const PAGE_SIZE = 10;
 
 type BetGame = {
   id: string;
@@ -66,6 +68,7 @@ export default function BetGamesPage() {
   const [games, setGames] = useState<BetGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,9 +94,15 @@ export default function BetGamesPage() {
   }, [token]);
 
   const q = search.trim().toLowerCase();
-  const filtered = q
+  // Recent on top, older at the bottom (by kickoff time, newest first)
+  const filtered = (q
     ? games.filter((g) => `${g.homeTeam} ${g.awayTeam} ${g.competition?.name ?? ""}`.toLowerCase().includes(q))
-    : games;
+    : games
+  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -121,7 +130,7 @@ export default function BetGamesPage() {
           <CardDescription>Football-data tick = match result available for settlement.</CardDescription>
           <div className="relative mt-3 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search teams, competition..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 pr-8" />
+            <Input placeholder="Search teams, competition..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8 pr-8" />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-muted p-1 hover:bg-muted/80">
                 <X className="size-3" />
@@ -142,6 +151,7 @@ export default function BetGamesPage() {
               <p className="text-xs text-muted-foreground">Publish a game to see its betting activity here.</p>
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <Table className="admin-cards">
                 <TableHeader className="bg-primary">
@@ -157,7 +167,7 @@ export default function BetGamesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((g) => (
+                  {paged.map((g) => (
                     <TableRow key={g.id} className="border-border hover:bg-muted/50">
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -198,6 +208,32 @@ export default function BetGamesPage() {
                 </TableBody>
               </Table>
             </div>
+            <div className="flex flex-col gap-2 border-t border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-muted-foreground">
+                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </div>
+              <Pagination className="mx-0 w-auto">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setPage(Math.max(1, safePage - 1)); }} className={safePage === 1 ? "pointer-events-none opacity-50" : ""} />
+                  </PaginationItem>
+                  {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
+                    const p = i + 1;
+                    return (
+                      <PaginationItem key={p}>
+                        <PaginationLink href="#" isActive={safePage === p} onClick={(e) => { e.preventDefault(); setPage(p); }}>
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  <PaginationItem>
+                    <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setPage(Math.min(totalPages, safePage + 1)); }} className={safePage === totalPages ? "pointer-events-none opacity-50" : ""} />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

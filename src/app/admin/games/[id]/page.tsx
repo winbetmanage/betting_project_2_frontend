@@ -135,6 +135,11 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
 
   const groupKey = (g: BookmakerGroup) => `${g.marketKey}::${g.point ?? "null"}`;
 
+  // Full page reload after a bulk process ends (delayed so the toast is seen)
+  const reloadPage = () => {
+    window.setTimeout(() => window.location.reload(), 900);
+  };
+
   const load = async () => {
     if (!externalEventId) return;
     setLoading(true);
@@ -178,6 +183,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       const res = await api.post<{ data: { stored: number } }>(`/games/${gameId}/fetch-odds`, {}, token);
       toast.success(`Fetched ${res.data.stored} bookmakers (all market types)`);
       await load();
+      reloadPage();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fetch failed");
     } finally {
@@ -234,6 +240,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       toast.success(`${group.label} approved from ${bookmakerKey}`);
       onApproved();
       await load();
+      reloadPage();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Approve failed");
     } finally {
@@ -269,6 +276,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       setChecked({});
       onApproved();
       await load();
+      reloadPage();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to record markets");
     } finally {
@@ -317,6 +325,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       setSelected(newSelected);
       onApproved();
       await load();
+      reloadPage();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Auto-fill failed");
     } finally {

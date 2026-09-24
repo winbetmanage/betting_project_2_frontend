@@ -18,9 +18,12 @@ import {
 import { UserCircle, Wallet, ChevronDown } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/admin/ThemeToggle";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useTranslations } from "next-intl";
 import MobileMenu from "./MobileMenu";
 
 export default function UserNav() {
+  const t = useTranslations("nav");
   const pathname = usePathname();
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -54,12 +57,12 @@ export default function UserNav() {
   }, [pathname]);
 
   const links = [
-    { href: "/", label: "Home" },
-    { href: "/games", label: "Games" },
-    { href: "/my-bets", label: "My Bets" },
-    { href: "/wallet", label: "Wallet" },
-    { href: "#", label: "News & Updates" },
-    { href: "#", label: "Contact" },
+    { href: "/", label: t("home") },
+    { href: "/games", label: t("games") },
+    { href: "/my-bets", label: t("myBets") },
+    { href: "/wallet", label: t("wallet") },
+    { href: "#", label: t("news") },
+    { href: "#", label: t("contact") },
   ];
 
   return (
@@ -91,7 +94,7 @@ export default function UserNav() {
                 href="/admin"
                 className={`rounded-md border border-primary/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/admin") ? "bg-primary text-white" : "text-primary-light hover:bg-primary/10"}`}
               >
-                Admin
+                {t("admin")}
               </Link>
             )}
             {role === "AGENT" && (
@@ -99,7 +102,7 @@ export default function UserNav() {
                 href="/agent"
                 className={`rounded-md border border-amber-500/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/agent") ? "bg-amber-500 text-white" : "text-amber-400 hover:bg-amber-500/10"}`}
               >
-                Agent
+                {t("agent")}
               </Link>
             )}
             {authed && (
@@ -107,7 +110,7 @@ export default function UserNav() {
                 href="/profile"
                 className={`rounded-md border border-primary/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/profile") ? "bg-primary text-white" : "text-primary-light hover:bg-primary/10"}`}
               >
-                Profile
+                {t("profile")}
               </Link>
             )}
           </div>
@@ -115,13 +118,11 @@ export default function UserNav() {
         <div className="flex items-center gap-2 sm:gap-4">
           <ThemeToggle />
           <div className="hidden items-center gap-1 text-xs text-white/70 sm:flex">
-            <span>Decimal Odds</span>
+            <span>{t("decimalOdds")}</span>
             <svg className="size-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </div>
-          <div className="hidden items-center gap-1 text-xs text-white/70 sm:flex">
-            <span className="text-sm">🇺🇸</span>
-            <span>en</span>
-            <svg className="size-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          <div className="hidden sm:flex">
+            <LanguageSwitcher />
           </div>
           <div className="h-4 w-px bg-white/10 hidden sm:block" />
           {authed ? (
@@ -152,13 +153,13 @@ export default function UserNav() {
                 <DropdownMenuSeparator className="bg-white/10" />
                 <div className="flex items-center gap-2 px-3 py-2 text-xs">
                   <Wallet className="size-4 text-secondary" />
-                  <span className="text-muted-foreground">Balance</span>
+                  <span className="text-muted-foreground">{t("balance")}</span>
                   <span className="ml-auto font-bold text-foreground">{balance !== null ? `ETB ${balance.toFixed(2)}` : "—"}</span>
                 </div>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem render={<Link href="/profile" className="flex items-center gap-2 w-full" />} className="cursor-pointer">
                   <UserCircle className="size-4" />
-                  My Profile
+                  {t("myProfile")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <div className="px-2 py-1">
@@ -173,13 +174,13 @@ export default function UserNav() {
                 href="/login"
                 className="rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
               >
-                Log in
+                {t("login")}
               </Link>
               <Link
                 href="/signup"
                 className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
               >
-                Sign up
+                {t("signup")}
               </Link>
             </div>
           )}

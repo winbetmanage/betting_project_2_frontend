@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { toast } from "sonner";
@@ -21,11 +22,13 @@ import {
   Link2,
   Mail,
   Calendar,
-  Wallet,
   TrendingUp,
   UserPlus,
   Bell,
   CircleHelp,
+  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
 } from "lucide-react";
 
 type AgentProfile = {
@@ -52,14 +55,6 @@ type MyReferral = {
   referee: { id: string; email: string; name: string | null; isActive: boolean; createdAt: string };
 };
 
-type Tx = {
-  id: string;
-  type: string;
-  amount: string | number;
-  reference?: string | null;
-  createdAt: string;
-};
-
 type Note = {
   id: string;
   title: string;
@@ -73,10 +68,11 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export default function AgentDashboardPage() {
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [referrals, setReferrals] = useState<MyReferral[]>([]);
-  const [bonusTx, setBonusTx] = useState<Tx[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [refPage, setRefPage] = useState(1);
+  const REF_PAGE_SIZE = 8;
   const [copied, setCopied] = useState(false);
   const [referralLink, setReferralLink] = useState("");
 
@@ -87,17 +83,15 @@ export default function AgentDashboardPage() {
     Promise.all([
       api.get<{ data: AgentProfile }>("/users/me", t).then((r) => r.data).catch(() => null),
       api.get<{ data: MyReferral[] }>("/users/me/referrals", t).then((r) => r.data ?? []).catch(() => []),
-      api.get<{ data: Tx[] }>("/wallet/transactions", t).then((r) => (r.data ?? []).filter((x) => x.type === "REFERRAL_BONUS")).catch(() => []),
       api.get<{ data: Note[] }>("/notifications/mine?limit=6", t).then((r) => r.data ?? []).catch(() => []),
     ])
-      .then(([me, refs, txs, ns]) => {
+      .then(([me, refs, ns]) => {
         if (!me) {
           toast.error("Failed to load agent profile");
           return;
         }
         setProfile(me);
         setReferrals(refs);
-        setBonusTx(txs);
         setNotes(ns);
         if (typeof window !== "undefined" && me.referralCode) {
           setReferralLink(`${window.location.origin}/signup?ref=${encodeURIComponent(me.referralCode)}`);
@@ -127,6 +121,28 @@ export default function AgentDashboardPage() {
       `${r.referee.name ?? ""} ${r.referee.email} ${r.codeUsed} ${r.status}`.toLowerCase().includes(q)
     );
   }, [referrals, search]);
+
+  const refTotalPages = Math.max(1, Math.ceil(visible.length / REF_PAGE_SIZE));
+  const refSafePage = Math.min(refPage, refTotalPages);
+  const refPaged = visible.slice((refSafePage - 1) * REF_PAGE_SIZE, refSafePage * REF_PAGE_SIZE);
+
+  const statusBadge = (status: string, rewardedAt: string | null) =>
+    status === "REWARDED" ? (
+      <span>
+        <Badge className="bg-secondary text-white">
+          <Gift className="mr-1 size-3" /> Rewarded
+        </Badge>
+        {rewardedAt && (
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            {new Date(rewardedAt).toLocaleDateString()}
+          </div>
+        )}
+      </span>
+    ) : (
+      <Badge variant="outline" className="border-amber-500/30 text-amber-600">
+        <Clock className="mr-1 size-3" /> Pending
+      </Badge>
+    );
 
   const recentSignups = useMemo(() => referrals.slice(0, 5), [referrals]);
 
@@ -158,7 +174,6 @@ export default function AgentDashboardPage() {
 
   const tiles = [
     { icon: Users, label: "Total referred", value: String(stats.total), sub: `${stats.thisWeek} new this week`, bg: "bg-primary/15 text-primary" },
-    { icon: Gift, label: "Bonus earned", value: `ETB ${stats.earned.toFixed(2)}`, sub: `${stats.rewarded} rewarded`, bg: "bg-secondary/15 text-secondary" },
     { icon: TrendingUp, label: "Conversion", value: `${stats.conversion}%`, sub: "referred → rewarded", bg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
     { icon: Clock, label: "Awaiting deposit", value: String(stats.pending), sub: "pending referrals", bg: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
   ];
@@ -173,12 +188,12 @@ export default function AgentDashboardPage() {
           Welcome{profile?.name ? `, ${profile.name}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Share your referral link, track who registered with it, and see the bonuses you earned.
+          Share your referral link and track who registered with it.
         </p>
       </div>
 
       {/* Stat tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {tiles.map((t) => (
           <Card key={t.label} className="border-border bg-card shadow-sm">
             <CardContent className="flex items-center gap-3 p-4">
@@ -194,6 +209,45 @@ export default function AgentDashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Activity — latest 10 on top */}
+      <div id="activity" className="scroll-mt-20">
+        <Card className="border-border bg-card shadow-sm h-full">
+          <CardHeader className="border-b border-border">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bell className="size-5 text-primary" /> Recent Activity
+              </CardTitle>
+              <Link href="/agent/activity">
+                <Button variant="outline" size="sm" className="h-8">
+                  Show more <ArrowRight className="size-3.5" />
+                </Button>
+              </Link>
+            </div>
+            <CardDescription>Latest notifications on your account</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {notes.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">No activity yet.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {notes.slice(0, 10).map((n) => (
+                  <div key={n.id} className="flex items-start gap-3 px-4 py-2.5">
+                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.isRead ? "bg-muted-foreground/30" : "bg-secondary"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">{n.title}</div>
+                      {n.message && <div className="truncate text-xs text-muted-foreground">{n.message}</div>}
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        {new Date(n.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
 
       {/* Profile + referral link */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -217,12 +271,6 @@ export default function AgentDashboardPage() {
               <div className="text-xs text-muted-foreground">Email</div>
               <div className="flex items-center gap-1 font-medium">
                 <Mail className="size-3 text-muted-foreground" /> {profile?.email}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Balance</div>
-              <div className="flex items-center gap-1 font-mono font-semibold">
-                <Wallet className="size-3 text-muted-foreground" /> ETB {Number(profile?.balance ?? 0).toFixed(2)}
               </div>
             </div>
             <div>
@@ -296,12 +344,6 @@ export default function AgentDashboardPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 rounded-xl bg-secondary/10 p-3 text-sm">
-              <Gift className="size-4 text-secondary" />
-              <span>
-                Bonus earned: <span className="font-bold">ETB {stats.earned.toFixed(2)}</span>
-              </span>
-            </div>
           </CardContent>
         </Card>
         </div>
@@ -317,12 +359,12 @@ export default function AgentDashboardPage() {
               {visible.length}
             </Badge>
           </CardTitle>
-          <CardDescription>Everyone who registered with your referral link, and their bonus status</CardDescription>
+          <CardDescription>Everyone who registered with your referral link, and their status</CardDescription>
           <div className="mt-3 max-w-sm">
             <Input
               placeholder="Search name or email..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setRefPage(1); }}
               className="max-w-sm"
             />
           </div>
@@ -335,144 +377,92 @@ export default function AgentDashboardPage() {
               <p className="text-xs text-muted-foreground">Share your referral link above to get started</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="admin-cards">
-                <TableHeader className="bg-primary">
-                  <TableRow className="hover:bg-primary border-primary">
-                    <TableHead className="text-white text-xs tracking-widest">USER</TableHead>
-                    <TableHead className="text-white text-xs tracking-widest">REGISTERED</TableHead>
-                    <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
-                    <TableHead className="text-white text-xs tracking-widest text-right">BONUS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visible.map((r) => (
-                    <TableRow key={r.id} className="border-border hover:bg-muted/50">
-                      <TableCell>
-                        <div className="font-medium text-sm">{r.referee.name || "—"}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Mail className="size-3" /> {r.referee.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">{new Date(r.createdAt).toLocaleDateString()}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {new Date(r.createdAt).toLocaleString()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {r.status === "REWARDED" ? (
-                          <Badge className="bg-secondary text-white">
-                            <Gift className="mr-1 size-3" /> Rewarded
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-600">
-                            <Clock className="mr-1 size-3" /> Pending
-                          </Badge>
-                        )}
-                        {r.rewardedAt && (
-                          <div className="mt-1 text-[10px] text-muted-foreground">
-                            {new Date(r.rewardedAt).toLocaleDateString()}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {r.status === "REWARDED" ? `ETB ${Number(r.bonusAmount).toFixed(2)}` : "—"}
-                      </TableCell>
+            <>
+              {/* Desktop table — striped, no horizontal scroll */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader className="bg-primary">
+                    <TableRow className="hover:bg-primary border-primary">
+                      <TableHead className="text-white text-xs tracking-widest">USER</TableHead>
+                      <TableHead className="text-white text-xs tracking-widest">REGISTERED</TableHead>
+                      <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {refPaged.map((r, i) => (
+                      <TableRow key={r.id} className={`border-border hover:bg-muted/50 ${i % 2 === 1 ? "bg-muted/40" : ""}`}>
+                        <TableCell>
+                          <div className="font-medium text-sm">{r.referee.name || "—"}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Mail className="size-3" /> {r.referee.email}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs">{new Date(r.createdAt).toLocaleDateString()}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {new Date(r.createdAt).toLocaleString()}
+                          </div>
+                        </TableCell>
+                        <TableCell>{statusBadge(r.status, r.rewardedAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile cards — stacked lines, never scrolls sideways */}
+              <div className="space-y-2 p-3 md:hidden">
+                {refPaged.map((r, i) => (
+                  <div key={r.id} className={`rounded-xl border border-border p-3 ${i % 2 === 1 ? "bg-muted/40" : "bg-card"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-sm">{r.referee.name || "—"}</div>
+                        <div className="truncate text-xs text-muted-foreground">{r.referee.email}</div>
+                      </div>
+                      {statusBadge(r.status, r.rewardedAt)}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-border pt-2 text-xs">
+                      <span className="text-muted-foreground">
+                        Joined {new Date(r.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+                <span>
+                  Showing {visible.length === 0 ? 0 : (refSafePage - 1) * REF_PAGE_SIZE + 1}–{Math.min(refSafePage * REF_PAGE_SIZE, visible.length)} of {visible.length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={refSafePage <= 1} onClick={() => setRefPage(refSafePage - 1)}>
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <span className="px-1">{refSafePage} / {refTotalPages}</span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={refSafePage >= refTotalPages} onClick={() => setRefPage(refSafePage + 1)}>
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </span>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
       </div>
 
-      {/* Bonus history + activity */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div id="bonus-history" className="scroll-mt-20">
-        <Card className="border-border bg-card shadow-sm h-full">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Gift className="size-5 text-secondary" /> Bonus History
-              <Badge variant="secondary" className="ml-1 bg-secondary/15 text-secondary border-secondary/20">
-                {bonusTx.length}
-              </Badge>
-            </CardTitle>
-            <CardDescription>Referral bonuses paid into your balance</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {bonusTx.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">
-                No bonuses yet — they appear here once a referred user&apos;s qualifying deposit is approved.
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {bonusTx.slice(0, 8).map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary/15 text-secondary">
-                      <Gift className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold">ETB {Number(t.amount).toFixed(2)}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{t.reference ?? "Referral bonus"}</span>
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {new Date(t.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </div>
-
-        <div id="activity" className="scroll-mt-20">
-        <Card className="border-border bg-card shadow-sm h-full">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Bell className="size-5 text-primary" /> Recent Activity
-            </CardTitle>
-            <CardDescription>Latest notifications on your account</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {notes.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">No activity yet.</div>
-            ) : (
-              <div className="divide-y divide-border">
-                {notes.map((n) => (
-                  <div key={n.id} className="flex items-start gap-3 px-4 py-2.5">
-                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.isRead ? "bg-muted-foreground/30" : "bg-secondary"}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{n.title}</div>
-                      {n.message && <div className="truncate text-xs text-muted-foreground">{n.message}</div>}
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        {new Date(n.createdAt).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </div>
-      </div>
-
-      {/* How it works */}
+      {/* How referrals work */}
       <Card className="border-border bg-card shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <CircleHelp className="size-5 text-primary" /> How referral earnings work
+            <CircleHelp className="size-5 text-primary" /> How referrals work
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-3">
           {[
             { step: "1", title: "Share your link", desc: "Send your referral link to friends, groups or followers." },
             { step: "2", title: "They register", desc: "Anyone who signs up with your link is counted as your referral." },
-            { step: "3", title: "You earn a bonus", desc: "Once their qualifying deposit is approved, the bonus lands in your balance." },
+            { step: "3", title: "Track signups", desc: "Watch who joined and qualified from the table above. Bonus rewards are currently paused." },
           ].map((s) => (
             <div key={s.step} className="rounded-xl border border-border p-3">
               <span className="grid size-7 place-items-center rounded-lg bg-primary/15 text-sm font-bold text-primary">{s.step}</span>

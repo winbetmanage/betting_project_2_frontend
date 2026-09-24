@@ -10,6 +10,7 @@ import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
 import { TeamLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
+import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
 import { timeRemaining, isBettingWindowOpen } from "@/lib/timeRemaining";
 import {
@@ -27,7 +28,6 @@ import {
   Wallet,
   UserCircle,
   ArrowRight,
-  Briefcase,
 } from "lucide-react";
 
 type Sport = {
@@ -91,7 +91,7 @@ const sportIcons: Record<string, React.ComponentType<{ className?: string }>> = 
 };
 
 const leftStaticSports = [
-  { label: "LIVE ONLY", icon: Monitor, active: false },
+  { labelKey: "liveOnly", icon: Monitor, active: false },
 ];
 
 // Top leagues shown in the left sidebar. Only EPL has games to bet on for now.
@@ -104,6 +104,7 @@ const topLeagues = [
 ];
 
 function LeagueEmpty({ league, onBack }: { league: (typeof topLeagues)[number]; onBack: () => void }) {
+  const t = useTranslations("home");
   return (
     <div className="rounded-xl bg-white p-12 text-center shadow-sm border border-[#e2e8f0]">
       <span className="mx-auto grid size-16 place-items-center overflow-hidden rounded-full bg-white p-2 shadow-md ring-1 ring-[#e2e8f0]">
@@ -111,19 +112,21 @@ function LeagueEmpty({ league, onBack }: { league: (typeof topLeagues)[number]; 
         <img src={league.logo} alt={league.name} className="size-full object-contain" />
       </span>
       <p className="mt-4 text-base font-bold text-[#0f172a]">{league.name}</p>
-      <p className="mt-1 text-sm font-semibold text-[#334155]">No games to bet for now</p>
-      <p className="mt-1 text-xs text-[#64748b]">Matches for {league.name} will appear here soon. Check back later.</p>
+      <p className="mt-1 text-sm font-semibold text-[#334155]">{t("noGamesBet")}</p>
+      <p className="mt-1 text-xs text-[#64748b]">{t("leagueEmptySoon", { league: league.name })}</p>
       <button
         onClick={onBack}
         className="mt-5 rounded-md border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-semibold text-[#0a0f2e] transition hover:bg-[#f8fafc]"
       >
-        Back to all games
+        {t("backToAllGames")}
       </button>
     </div>
   );
 }
 
 function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
+  const t = useTranslations("home");
+  const tNav = useTranslations("nav");
   const [sports, setSports] = useState<Sport[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,11 +183,11 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       return;
     }
     if (slip.count === 0) {
-      toast.error("Add at least one selection first");
+      toast.error(t("addSelectionFirst"));
       return;
     }
     if (!(Number(slip.stake) > 0)) {
-      toast.error("Enter a stake");
+      toast.error(t("enterStake"));
       return;
     }
     setNotice(null);
@@ -195,13 +198,13 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
     if (!confirmReceipt) return;
     const res = await slip.place();
     if (res.betId) {
-      toast.success(`Bet placed! ID: ${res.betId.slice(0, 8)}`);
-      setNotice({ kind: "ok", text: `Bet placed! ID: ${res.betId.slice(0, 8)}` });
+      toast.success(t("betPlacedId", { id: res.betId.slice(0, 8) }));
+      setNotice({ kind: "ok", text: t("betPlacedId", { id: res.betId.slice(0, 8) }) });
       window.dispatchEvent(new CustomEvent("tana:bet-placed", { detail: res.betId }));
       setConfirmReceipt(null);
       setPlacedReceipt({ ...confirmReceipt, id: res.betId, placedAt: new Date().toISOString() });
     } else {
-      const msg = res.error ?? "Could not place bet";
+      const msg = res.error ?? t("couldNotPlace");
       toast.error(msg);
       setNotice({ kind: "err", text: msg });
       setConfirmReceipt(null);
@@ -218,14 +221,14 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           <nav className="p-2">
             <div className="space-y-1">
               {leftStaticSports.map((s) => (
-                <a key={s.label} href="#" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-xs font-medium text-white/60 hover:bg-white/5 hover:text-white">
+                <a key={s.labelKey} href="#" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-xs font-medium text-white/60 hover:bg-white/5 hover:text-white">
                   <s.icon className="size-4" />
-                  {s.label}
+                  {t(s.labelKey)}
                 </a>
               ))}
               <div className="my-2 h-px bg-white/10" />
               <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
-                Top Leagues
+                {t("topLeagues")}
               </div>
               {topLeagues.map((lg) => {
                 const active = activeLeague === lg.id;
@@ -250,10 +253,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               })}
               <div className="my-2 h-px bg-white/10" />
               <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
-                Sports
+                {t("sports")}
               </div>
               {sports.length === 0 && !loading ? (
-                <div className="px-3 py-2 text-xs text-white/30">No sports yet</div>
+                <div className="px-3 py-2 text-xs text-white/30">{t("noSports")}</div>
               ) : (
                 sports.map((sport) => {
                   const Icon = sportIcons[sport.gameType] ?? Trophy;
@@ -307,10 +310,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           {/* Mobile quick actions — right after the hero (2x2 grid) */}
           <div className="grid grid-cols-2 gap-2.5 sm:hidden">
             {[
-              { href: "/games", label: "Games", icon: Gamepad2, desc: "Bet on live & upcoming" },
-              { href: "/my-bets", label: "My Bets", icon: Ticket, desc: "Track your tickets" },
-              { href: "/wallet", label: "Wallet", icon: Wallet, desc: "Deposit & withdraw" },
-              { href: "/profile", label: "Profile", icon: UserCircle, desc: "Account & referral" },
+              { href: "/games", labelKey: "games", icon: Gamepad2, descKey: "betOnLive" },
+              { href: "/my-bets", labelKey: "myBets", icon: Ticket, descKey: "trackTickets" },
+              { href: "/wallet", labelKey: "wallet", icon: Wallet, descKey: "depositWithdraw" },
+              { href: "/profile", labelKey: "profile", icon: UserCircle, descKey: "accountReferral" },
             ].map((a) => (
               <Link
                 key={a.href}
@@ -322,8 +325,8 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   <a.icon className="size-5" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-xs font-bold text-white">{a.label}</span>
-                  <span className="block truncate text-[9px] text-white/40">{a.desc}</span>
+                  <span className="block text-xs font-bold text-white">{tNav(a.labelKey)}</span>
+                  <span className="block truncate text-[9px] text-white/40">{t(a.descKey)}</span>
                 </span>
               </Link>
             ))}
@@ -343,11 +346,11 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 </span>
                 <div>
                   <div className="text-sm font-bold text-[#0f172a]">English Premier League</div>
-                  <div className="text-[11px] text-[#64748b]">Upcoming &amp; live games</div>
+                  <div className="text-[11px] text-[#64748b]">{t("upcomingLiveGames")}</div>
                 </div>
               </div>
               <button onClick={() => setActiveLeague(null)} className="text-xs font-medium text-[#3b82f6] hover:underline">
-                Clear
+                {t("clear")}
               </button>
             </div>
           )}
@@ -362,11 +365,11 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           ) : filteredGames.length === 0 ? (
             <div className="rounded-xl bg-white p-12 text-center shadow-sm border border-[#e2e8f0]">
               <Trophy className="mx-auto size-10 text-[#cbd5e1]" />
-              <p className="mt-3 text-sm font-medium text-[#0f172a]">No games yet</p>
-              <p className="text-xs text-[#64748b]">Check back soon for top matches</p>
+              <p className="mt-3 text-sm font-medium text-[#0f172a]">{t("noGamesYet")}</p>
+              <p className="text-xs text-[#64748b]">{t("checkBackSoon")}</p>
               {activeSport && (
                 <button onClick={() => { setActiveSport(null); setActiveLeague(null); }} className="mt-3 text-xs text-[#3b82f6] hover:underline">
-                  Clear filter
+                  {t("clearFilter")}
                 </button>
               )}
             </div>
@@ -381,14 +384,14 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                     <div className="flex items-center gap-2">
                       {game.status === "LIVE" ? (
                         <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-[#ef4444]">
-                          <span className="size-1.5 rounded-full bg-[#ef4444] animate-pulse" /> Live Now
+                          <span className="size-1.5 rounded-full bg-[#ef4444] animate-pulse" /> {t("liveNow")}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-[#0a0f2e]">
-                          <Clock className="size-3" /> Upcoming
+                          <Clock className="size-3" /> {t("upcoming")}
                         </span>
                       )}
-                      <span className="hidden text-[10px] text-[#64748b] sm:inline">• {game.competition?.name ?? "Friendly"}</span>
+                      <span className="hidden text-[10px] text-[#64748b] sm:inline">• {game.competition?.name ?? t("friendly")}</span>
                     </div>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${game.status === "LIVE" ? "bg-red-50 text-red-600" : game.status === "SUSPENDED" ? "bg-amber-50 text-amber-600" : "bg-[#f1f5f9] text-[#64748b]"}`}>
                       {game.status}
@@ -408,7 +411,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                             {Number(game.score.homeFT)}<span className="mx-1 text-white/40">-</span>{Number(game.score.awayFT)}
                           </span>
                           <span className={`text-[9px] font-bold uppercase tracking-wider ${game.status === "LIVE" ? "text-[#ef4444]" : "text-[#64748b]"}`}>
-                            {game.status === "LIVE" ? "LIVE" : game.status === "SUSPENDED" ? "Suspended" : "Full time"}
+                            {game.status === "LIVE" ? t("live") : game.status === "SUSPENDED" ? t("suspended") : t("fullTime")}
                           </span>
                         </>
                       ) : game.status === "LIVE" ? (
@@ -434,13 +437,13 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
 
                   {/* Odds grid — H2H (match winner) market only */}
                   <div>
-                    {!isBettingWindowOpen(game.startTime, game.status) ? (
+                      {!isBettingWindowOpen(game.startTime, game.status) ? (
                         <div className="grid place-items-center gap-1 p-6 text-center">
-                          <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">Betting closed</span>
-                          <span className="text-[11px] text-[#94a3b8]">Kickoff within 15 minutes</span>
+                          <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">{t("bettingClosed")}</span>
+                          <span className="text-[11px] text-[#94a3b8]">{t("kickoff15")}</span>
                         </div>
                       ) : (game.markets ?? []).filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0).length === 0 ? (
-                        <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">Betting currently unavailable</div>
+                        <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">{t("bettingUnavailable")}</div>
                       ) : (
                         <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-[#e2e8f0] divide-y sm:divide-y-0">
                           {(game.markets ?? [])
@@ -495,7 +498,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       )}
                       {game.markets.filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN").length > 1 && (
                         <div className="border-t border-[#e2e8f0] bg-[#f8fafc] px-3 py-1 text-right">
-                          <span className="text-[11px] text-[#64748b]">+{game.markets.filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN").length - 1} more H2H markets</span>
+                          <span className="text-[11px] text-[#64748b]">{t("moreH2H", { n: game.markets.filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN").length - 1 })}</span>
                         </div>
                       )}
                   </div>
@@ -510,7 +513,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       onClick={() => router.push(isGuest ? "/login" : `/games/${game.id}`)}
                       className="rounded-md bg-[#0a0f2e] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#1a2456]"
                     >
-                      Details
+                      {t("details")}
                     </button>
                   </div>
                 </div>
@@ -528,9 +531,9 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   <span className="grid size-6 place-items-center rounded-md bg-primary text-white">
                     <History className="size-3.5" />
                   </span>
-                  Recent Results
+                  {t("recentResults")}
                 </h3>
-                <span className="text-[10px] font-medium text-[#64748b]">{results.length} latest</span>
+                <span className="text-[10px] font-medium text-[#64748b]">{results.length} {t("latest")}</span>
               </div>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {results.map((r) => {
@@ -546,7 +549,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       <div className="mb-2.5 flex items-center justify-between text-[10px] text-[#94a3b8]">
                         <span className="flex items-center gap-1 truncate font-medium">
                           <Trophy className="size-3 text-[#f59e0b]" />
-                          {r.competition?.name ?? "Friendly"}
+                          {r.competition?.name ?? t("friendly")}
                         </span>
                         <span>{new Date(r.startTime).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
                       </div>
@@ -565,10 +568,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                             {Number(r.score?.homeScoreFT ?? 0)}<span className="mx-0.5 text-white/40">-</span>{Number(r.score?.awayScoreFT ?? 0)}
                           </span>
                           {draw ? (
-                            <span className="rounded-full bg-[#f1f5f9] px-1.5 text-[8px] font-bold tracking-wider text-[#64748b]">DRAW</span>
+                            <span className="rounded-full bg-[#f1f5f9] px-1.5 text-[8px] font-bold tracking-wider text-[#64748b]">{t("draw")}</span>
                           ) : (
                             <span className="text-[8px] font-bold tracking-wider text-primary">
-                              {homeWin ? "HOME WON" : "AWAY WON"}
+                              {homeWin ? t("homeWon") : t("awayWon")}
                             </span>
                           )}
                         </div>
@@ -607,7 +610,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-white/50">
-                  Bet on top leagues with the best odds, fast payouts and 24/7 live action — all in one place.
+                  {t("brandTagline")}
                 </p>
                 <div className="mt-4 flex gap-2">
                   {["f", "t", "in", "ig"].map((s) => (
@@ -626,14 +629,14 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               {/* Quick links */}
               <div>
                 <h4 className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-white/90">
-                  <ArrowRight className="size-3.5 text-[#60a5fa]" /> QUICK LINKS
+                  <ArrowRight className="size-3.5 text-[#60a5fa]" /> {t("quickLinks")}
                 </h4>
                 <ul className="mt-3 space-y-2 text-xs">
                   {[
-                    { href: "/", label: "Home" },
-                    { href: "/games", label: "Games" },
-                    { href: "/my-bets", label: "My Bets" },
-                    { href: "/wallet", label: "Wallet" },
+                    { href: "/", labelKey: "home" },
+                    { href: "/games", labelKey: "games" },
+                    { href: "/my-bets", labelKey: "myBets" },
+                    { href: "/wallet", labelKey: "wallet" },
                   ].map((l) => (
                     <li key={l.href}>
                       <Link
@@ -641,7 +644,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                         className="group inline-flex items-center gap-1.5 text-white/50 transition hover:translate-x-0.5 hover:text-white"
                       >
                         <span className="h-px w-3 bg-[#60a5fa]/50 transition-all group-hover:w-4 group-hover:bg-[#60a5fa]" />
-                        {l.label}
+                        {tNav(l.labelKey)}
                       </Link>
                     </li>
                   ))}
@@ -651,37 +654,37 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               {/* Company */}
               <div>
                 <h4 className="flex items-center gap-1.5 text-xs font-bold tracking-widest text-white/90">
-                  <ArrowRight className="size-3.5 text-[#60a5fa]" /> COMPANY
+                  <ArrowRight className="size-3.5 text-[#60a5fa]" /> {t("company")}
                 </h4>
                 <ul className="mt-3 space-y-2 text-xs text-white/50">
-                  <li><a href="#" className="transition hover:text-white">News &amp; Updates</a></li>
-                  <li><a href="#" className="transition hover:text-white">Contact</a></li>
-                  <li><a href="#" className="transition hover:text-white">Privacy Policy</a></li>
-                  <li><a href="#" className="transition hover:text-white">Terms of Service</a></li>
-                  <li><a href="#" className="transition hover:text-white">Refund Policy</a></li>
+                  <li><a href="#" className="transition hover:text-white">{t("news")}</a></li>
+                  <li><a href="#" className="transition hover:text-white">{t("contact")}</a></li>
+                  <li><a href="#" className="transition hover:text-white">{t("privacy")}</a></li>
+                  <li><a href="#" className="transition hover:text-white">{t("terms")}</a></li>
+                  <li><a href="#" className="transition hover:text-white">{t("refund")}</a></li>
                 </ul>
               </div>
 
               {/* Payments / responsible gaming */}
               <div>
-                <h4 className="text-xs font-bold tracking-widest text-white/90">PAYMENTS</h4>
+                <h4 className="text-xs font-bold tracking-widest text-white/90">{t("payments")}</h4>
                 <p className="mt-3 text-xs leading-relaxed text-white/50">
-                  We accept any type of payment that is added in the system — deposits and withdrawals are processed securely.
+                  {t("paymentsText")}
                 </p>
                 <div className="mt-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
-                  <div className="text-[10px] font-bold tracking-widest text-[#ffb347]">18+ · PLAY RESPONSIBLY</div>
+                  <div className="text-[10px] font-bold tracking-widest text-[#ffb347]">{t("responsible")}</div>
                   <p className="mt-1 text-[10px] leading-relaxed text-white/40">
-                    Betting can be addictive. Only wager what you can afford to lose.
+                    {t("gambleNote")}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col items-center justify-between gap-2 border-t border-white/10 px-6 py-4 text-[11px] text-white/40 sm:flex-row">
-              <span>© {new Date().getFullYear()} Tana Betting. All rights reserved.</span>
+              <span>{t("rights", { year: new Date().getFullYear() })}</span>
               <span className="flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
-                All systems operational
+                {t("systemsOk")}
               </span>
             </div>
           </footer>
@@ -692,9 +695,9 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       <aside className="hidden w-[300px] shrink-0 bg-[#eef2f7] p-3 lg:block">
         <div className="sticky top-[68px] space-y-3">
           <div className="flex overflow-hidden rounded-lg border border-[#e2e8f0] bg-white text-xs font-medium">
-            <button className="flex-1 bg-[#3b82f6] py-2 text-white">Bet Slip</button>
+            <button className="flex-1 bg-[#3b82f6] py-2 text-white">{t("betSlip")}</button>
             <button className="flex-1 bg-white py-2 text-[#64748b] hover:bg-[#f8fafc]" onClick={() => (isGuest ? null : (window.location.href = "/admin/bets"))}>
-              My Bets
+              {tNav("myBets")}
             </button>
           </div>
 
@@ -706,14 +709,14 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <p className="mt-3 text-xs text-[#94a3b8]">Your selections will be displayed here</p>
+                <p className="mt-3 text-xs text-[#94a3b8]">{t("selectionsEmpty")}</p>
                 {isGuest && (
                   <div className="mt-4 flex gap-2">
                     <Link href="/login" className="rounded-md bg-[#3b82f6] px-4 py-1.5 text-xs font-semibold text-white">
-                      Log in
+                      {tNav("login")}
                     </Link>
                     <Link href="/signup" className="rounded-md border border-[#e2e8f0] px-4 py-1.5 text-xs font-medium">
-                      Sign up
+                      {tNav("signup")}
                     </Link>
                   </div>
                 )}
@@ -721,9 +724,9 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             ) : (
               <div className="p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#0f172a]">{slip.count > 1 ? `Multiple — ${slip.count} legs` : "Single"}</span>
+                  <span className="text-xs font-bold text-[#0f172a]">{slip.count > 1 ? t("multipleLegs", { count: slip.count }) : t("single")}</span>
                   <button onClick={() => slip.clear()} className="text-[11px] text-[#94a3b8] hover:text-[#ef4444]">
-                    Clear all
+                    {t("clearAll")}
                   </button>
                 </div>
                 <div className="space-y-2">
@@ -745,7 +748,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   ))}
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs">
-                  <span className="text-[#64748b]">Total odds</span>
+                  <span className="text-[#64748b]">{t("totalOdds")}</span>
                   <span className="font-bold">{slip.totalOdds.toFixed(2)}</span>
                 </div>
                 {notice && (
@@ -759,15 +762,15 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
 
           <div className="rounded-xl bg-white shadow-sm border border-[#e2e8f0] p-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[#0f172a]">Single</span>
+              <span className="text-xs font-medium text-[#0f172a]">{t("single")}</span>
               <select className="rounded-md border border-[#e2e8f0] bg-white px-2 py-1 text-xs">
-                <option>Single</option>
-                <option>Multiple</option>
+                <option>{t("single")}</option>
+                <option>{t("multiple")}</option>
               </select>
             </div>
             <div className="mt-3 space-y-2">
               <div>
-                <label className="text-[10px] font-bold tracking-widest text-[#64748b]">STAKE</label>
+                <label className="text-[10px] font-bold tracking-widest text-[#64748b]">{t("stake")}</label>
                 <div className="mt-1 flex items-center gap-2 rounded-md border border-[#e2e8f0] bg-white px-2 py-1.5">
                   <span className="text-xs text-[#64748b]">ETB</span>
                   <input
@@ -780,12 +783,12 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 </div>
               </div>
               <div className="flex justify-between text-xs text-[#64748b]">
-                <span>{slip.count} selection{slip.count === 1 ? "" : "s"}</span>
-                <span>Odds: {slip.totalOdds.toFixed(2)}</span>
+                <span>{t("selectionsCount", { count: slip.count })}</span>
+                <span>{t("oddsLabel")}: {slip.totalOdds.toFixed(2)}</span>
               </div>
               {slip.count > 0 && (
                 <div className="flex justify-between text-xs font-medium">
-                  <span>Potential Returns</span>
+                  <span>{t("potentialReturns")}</span>
                   <span className="text-[#0f172a]">ETB {slip.potentialPayout.toFixed(2)}</span>
                 </div>
               )}
@@ -802,7 +805,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 disabled={slip.count === 0 || slip.placing}
                 className="flex-1 rounded-md bg-[#3b82f6] py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-[#2563eb] disabled:opacity-50"
               >
-                {slip.placing ? "PLACING..." : "PLACE BET"}
+                {slip.placing ? t("placing") : t("placeBet")}
               </button>
             </div>
           </div>
@@ -815,13 +818,13 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-semibold text-[#0f172a]">
-                {slip.count > 1 ? `Multiple — ${slip.count} legs` : slip.legs[0].selectionName}
+                {slip.count > 1 ? t("multipleLegs", { count: slip.count }) : slip.legs[0].selectionName}
                 {slip.count === 1 && <span className="font-normal text-[#64748b]"> • {slip.legs[0].marketName}</span>}
               </div>
               <div className="truncate text-[11px] text-[#64748b]">
-                Odds <span className="font-bold text-[#0f172a]">{slip.totalOdds.toFixed(2)}</span>
-                {" · "}Stake <span className="font-bold text-[#0f172a]">{slip.stake || 0}</span>
-                {" · "}Returns <span className="font-bold text-[#0f172a]">ETB {slip.potentialPayout.toFixed(2)}</span>
+                {t("oddsLabel")} <span className="font-bold text-[#0f172a]">{slip.totalOdds.toFixed(2)}</span>
+                {" · "}{t("stake")} <span className="font-bold text-[#0f172a]">{slip.stake || 0}</span>
+                {" · "}{t("potentialReturns")} <span className="font-bold text-[#0f172a]">ETB {slip.potentialPayout.toFixed(2)}</span>
               </div>
             </div>
             <button
@@ -837,7 +840,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             disabled={slip.placing}
             className="mt-2 w-full rounded-md bg-[#3b82f6] py-3 text-sm font-bold tracking-wide text-white shadow-sm disabled:opacity-50"
           >
-            {slip.placing ? "PLACING..." : `PLACE BET · ETB ${slip.potentialPayout.toFixed(2)}`}
+            {slip.placing ? t("placing") : `${t("placeBet")} · ETB ${slip.potentialPayout.toFixed(2)}`}
           </button>
         </div>
       )}
@@ -853,7 +856,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
         open={!!placedReceipt}
         onOpenChange={(o) => { if (!o) setPlacedReceipt(null); }}
         data={placedReceipt}
-        confirmLabel="Done"
+        confirmLabel={t("done")}
         cancelLabel=""
         onConfirm={() => setPlacedReceipt(null)}
       />
@@ -863,26 +866,6 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
 
 function UserHome() {
   return <BetLabDashboard isGuest={false} />;
-}
-
-function AgentBanner() {
-  const router = useRouter();
-  return (
-    <div className="border-b border-amber-500/20 bg-amber-500/10">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-2 px-4 py-2 text-xs">
-        <Briefcase className="size-4 text-amber-600" />
-        <span className="font-medium text-amber-700 dark:text-amber-400">
-          Signed in as an agent — browsing only, betting is disabled on this account.
-        </span>
-        <button
-          onClick={() => router.push("/agent")}
-          className="ml-auto rounded-md bg-amber-500 px-3 py-1.5 font-semibold text-white transition hover:bg-amber-500/90"
-        >
-          Return to Agent Dashboard
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function PublicHome() {
@@ -908,11 +891,14 @@ export default function HomeContent() {
 
   useEffect(() => {
     if (!mounted) return;
-    if (authed && role === "ADMIN") {
+    // Each role lands on its own dashboard: admin -> /admin, agent -> /agent
+    // (the agent dashboard is the agent's main home page). Normal users stay here.
+    if (!authed) return;
+    if (role === "ADMIN") {
       router.replace("/admin");
+    } else if (role === "AGENT") {
+      router.replace("/agent");
     }
-    // NOTE: AGENT is intentionally not redirected — agents land on /agent at
-    // login time, but must still be able to visit "/" via "View Site".
   }, [mounted, authed, role, router]);
 
   if (!mounted) {
@@ -924,7 +910,7 @@ export default function HomeContent() {
     );
   }
 
-  if (authed && role === "ADMIN") {
+  if (authed && (role === "ADMIN" || role === "AGENT")) {
     return (
       <div className="grid min-h-[60vh] place-items-center bg-[#eef2f7]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -935,15 +921,6 @@ export default function HomeContent() {
 
   if (!authed) {
     return <PublicHome />;
-  }
-
-  if (role === "AGENT") {
-    return (
-      <>
-        <AgentBanner />
-        <UserHome />
-      </>
-    );
   }
 
   return <UserHome />;

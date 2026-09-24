@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { TeamLogo } from "@/components/TeamLogo";
 import { ChevronRight, Clock, Calendar, Trophy } from "lucide-react";
@@ -17,6 +18,7 @@ type Game = {
 };
 
 export default function GamesPage() {
+  const t = useTranslations("games");
   const [token, setToken] = useState<string | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +28,12 @@ export default function GamesPage() {
   }, []);
 
   useEffect(() => {
-    const t = token;
+    const tok = token;
     api
-      .get<{ data: Game[] }>("/games?isPublished=true", t)
+      .get<{ data: Game[] }>("/games?isPublished=true", tok)
       .then((res) => setGames((res.data ?? []).filter((g) => ["SCHEDULED", "LIVE", "SUSPENDED"].includes(g.status))))
       .catch(() => {
-        toast.error("Failed to load games");
+        toast.error(t("loadFailed"));
         setGames([]);
       })
       .finally(() => setLoading(false));
@@ -40,8 +42,8 @@ export default function GamesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Upcoming games</h1>
-        <p className="mt-1 text-sm text-white/60">Published matches available now. Tap a game to view odds and place your bet.</p>
+        <h1 className="text-2xl font-bold">{t("upcomingGames")}</h1>
+        <p className="mt-1 text-sm text-white/60">{t("upcomingSub")}</p>
       </div>
 
       {loading ? (
@@ -52,8 +54,8 @@ export default function GamesPage() {
       ) : games.length === 0 ? (
         <div className="py-16 text-center">
           <Trophy className="mx-auto size-10 text-white/20" />
-          <p className="mt-3 text-sm font-medium">No upcoming games</p>
-          <p className="text-xs text-white/50">Check back soon — new matches are added regularly.</p>
+          <p className="mt-3 text-sm font-medium">{t("noUpcoming")}</p>
+          <p className="text-xs text-white/50">{t("checkBack")}</p>
         </div>
       ) : (
         <ul className="space-y-3">
@@ -68,7 +70,7 @@ export default function GamesPage() {
                     <TeamLogo name={game.homeTeam} className="size-8" />
                     <span className="font-semibold">{game.homeTeam}</span>
                   </span>
-                  <span className="text-white/40">vs</span>
+                  <span className="text-white/40">{t("vs")}</span>
                   <span className="flex items-center gap-2">
                     <span className="font-semibold">{game.awayTeam}</span>
                     <TeamLogo name={game.awayTeam} className="size-8" />

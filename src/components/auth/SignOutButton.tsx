@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getRefreshToken, clearSession } from "@/lib/auth";
 
 export default function SignOutButton() {
+  const t = useTranslations("nav");
   const router = useRouter();
 
   const signOut = async () => {
@@ -22,7 +24,7 @@ export default function SignOutButton() {
       onClick={signOut}
       className="rounded-md border border-white/15 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
     >
-      Sign out
+      {t("signOut")}
     </button>
   );
 }

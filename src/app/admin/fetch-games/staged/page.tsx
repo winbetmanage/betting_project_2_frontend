@@ -64,7 +64,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-type SportChoice = "premier-league" | "champions-league";
 type StagedStatus = "PENDING" | "MATCH_NOT_FOUND" | "CONFIRMED" | "REJECTED";
 
 type StagedTeam = { id: string; fullName: string; shortName: string | null; iconUrl: string | null };
@@ -103,15 +102,6 @@ type StagedFull = Omit<StagedRow, "homeTeam" | "awayTeam" | "game"> & {
   stagedBy: { id: string; name: string | null; email: string } | null;
 };
 
-type StageSummary = {
-  choice: SportChoice;
-  fetched: number;
-  alreadyStaged: number;
-  added: number;
-  createdTeams: string[];
-  unresolved: { fixture: string; reason: string }[];
-};
-
 type ListResponse = {
   data: StagedRow[];
   total: number;
@@ -119,6 +109,7 @@ type ListResponse = {
   limit: number;
   totalPages: number;
   counts: Record<string, number>;
+  hidden?: { finished: number; pastKickoff: number; rescheduled: number };
 };
 
 type FdSide = { id: number; name: string; shortName: string | null; tla: string | null } | null;
@@ -181,8 +172,7 @@ function errMessage(e: unknown, fallback: string): string {
 export default function StagedGamesPage() {
   const [token, setToken] = useState<string | null>(null);
 
-  const [choice, setChoice] = useState<SportChoice>("premier-league");
-  const [fetching, setFetching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [rows, setRows] = useState<StagedRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +180,8 @@ export default function StagedGamesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [hidden, setHidden] = useState({ finished: 0, pastKickoff: 0, rescheduled: 0 });
+  const [showHidden, setShowHidden] = useState(false);
   const limit = 20;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("ALL");
@@ -229,12 +221,13 @@ export default function StagedGamesPage() {
     return () => clearInterval(id);
   }, []);
 
-  const load = useCallback(async (p: number, s: string, st: string, t: string | null) => {
+  const load = useCallback(async (p: number, s: string, st: string, t: string | null, includeHidden = showHidden) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (s.trim()) params.set("search", s.trim());
       if (st && st !== "ALL") params.set("status", st);
+      if (includeHidden) params.set("includeHidden", "true");
       params.set("page", String(p));
       params.set("limit", String(limit));
       const res = await api.get<ListResponse>(`/fetch-games/staged?${params.toString()}`, t);
@@ -242,6 +235,7 @@ export default function StagedGamesPage() {
       setTotal(res.total ?? 0);
       setTotalPages(res.totalPages ?? 1);
       setCounts(res.counts ?? {});
+      setHidden(res.hidden ?? { finished: 0, pastKickoff: 0, rescheduled: 0 });
       if (res.page && res.page !== p) setPage(res.page);
     } catch (e) {
       toast.error(errMessage(e, "Failed to load staged games"));
@@ -249,7 +243,7 @@ export default function StagedGamesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showHidden]);
 
   useEffect(() => {
     load(1, search, status, token);
@@ -263,6 +257,15 @@ export default function StagedGamesPage() {
   }, [search, status, page]);
 
   const reload = () => load(page, search, status, getAccessToken() ?? token);
+
+  const toggleHidden = () => {
+    const next = !showHidden;
+    setShowHidden(next);
+    setPage(1);
+    load(1, search, status, getAccessToken() ?? token, next);
+  };
+
+  const hiddenTotal = hidden.finished + hidden.pastKickoff + hidden.rescheduled;
 
   // Rows already promoted into the Games table can never be selected for deletion
   const isAdded = (r: StagedRow) => r.gameId != null || r.game != null;
@@ -341,22 +344,18 @@ export default function StagedGamesPage() {
     }
   };
 
-  const handleFetch = async () => {
+  const handleRefresh = async () => {
     const t = getAccessToken() ?? token;
-    setFetching(true);
+    setRefreshing(true);
     try {
-      const res = await api.post<{ message: string; data: StageSummary }>("/fetch-games/staged/fetch", { choice }, t);
-      const s = res.data;
-      const bits = [`${s.added} new staged`, `${s.alreadyStaged} already staged`];
-      if (s.createdTeams.length) bits.push(`${s.createdTeams.length} team(s) auto-added`);
-      if (s.unresolved.length) bits.push(`${s.unresolved.length} skipped`);
-      toast.success(`${res.message} (${bits.join(", ")})`);
+      const res = await api.post<{ message: string }>("/fetch-games/staged/refresh", {}, t);
+      toast.success(res.message || "Staged games refreshed");
       setPage(1);
       await load(1, search, status, t);
     } catch (e) {
-      toast.error(errMessage(e, "Fetch failed"));
+      toast.error(errMessage(e, "Refresh failed"));
     } finally {
-      setFetching(false);
+      setRefreshing(false);
     }
   };
 
@@ -486,59 +485,39 @@ export default function StagedGamesPage() {
         </div>
       </div>
 
-      {/* Add games section */}
+      {/* Refresh section */}
       <Card className="border-border bg-card shadow-sm">
         <CardHeader className="border-b border-border">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Download className="size-5 text-primary" /> Add games
+            <RefreshCw className="size-5 text-primary" /> Refresh staged games
           </CardTitle>
           <CardDescription>
-            Pick a competition and fetch. Only brand-new events are staged — existing rows are kept, nothing is deleted.
+            Re-reads kickoff times and odds data from The Odds API and scores/statuses from football-data.org for every
+            staged row. Nothing is added or deleted — add new games from the Premier League and Champions League pages.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Competition:</span>
-            <div className="inline-flex rounded-lg border border-input bg-muted/60 p-1">
-              <button
-                type="button"
-                onClick={() => setChoice("premier-league")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  choice === "premier-league" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Trophy className="size-4" /> Premier League
-              </button>
-              <button
-                type="button"
-                onClick={() => setChoice("champions-league")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  choice === "champions-league" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Star className="size-4" /> Champions League
-              </button>
-            </div>
-          </div>
-
-          <Button onClick={handleFetch} disabled={fetching} className="bg-primary hover:bg-primary/90 gap-2">
-            {fetching ? (
+          <p className="text-sm text-muted-foreground">
+            Updates times, linked scores and match statuses in place.
+          </p>
+          <Button onClick={handleRefresh} disabled={refreshing} className="bg-primary hover:bg-primary/90 gap-2">
+            {refreshing ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={SPINNER} alt="" className="size-4" /> Fetching…
+                <img src={SPINNER} alt="" className="size-4" /> Refreshing…
               </>
             ) : (
               <>
-                <RefreshCw className="size-4" /> Fetch {choice === "premier-league" ? "EPL" : "UCL"} &amp; stage
+                <RefreshCw className="size-4" /> Refresh from APIs
               </>
             )}
           </Button>
         </CardContent>
-        {fetching && (
+        {refreshing && (
           <div className="grid place-items-center gap-2 border-t border-border py-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={SPINNER} alt="Fetching" className="size-9" />
-            <p className="text-xs text-muted-foreground">Fetching fixtures from The Odds API…</p>
+            <img src={SPINNER} alt="Refreshing" className="size-9" />
+            <p className="text-xs text-muted-foreground">Refreshing staged rows from the APIs…</p>
           </div>
         )}
       </Card>
@@ -552,7 +531,17 @@ export default function StagedGamesPage() {
               {total} total
             </Badge>
           </CardTitle>
-          <CardDescription>Search by team or event id. Filter by status. Click the football-data cell to find &amp; link a fixture.</CardDescription>
+          <CardDescription>Search by team or event id. Filter by status. Click the football-data cell to find &amp; link a fixture. Finished, past-kickoff and rescheduled rows are auto-hidden.</CardDescription>
+          {(hiddenTotal > 0 || showHidden) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                {hiddenTotal} hidden ({hidden.finished} finished • {hidden.pastKickoff} past kickoff • {hidden.rescheduled} rescheduled)
+              </span>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={toggleHidden}>
+                {showHidden ? "Hide them again" : "Show hidden"}
+              </Button>
+            </div>
+          )}
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1 sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

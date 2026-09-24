@@ -16,14 +16,9 @@ type MobileMenuProps = {
   balance: number | null;
 };
 
-const links = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/games", label: "Games", icon: Gamepad2 },
-  { href: "/my-bets", label: "My Bets", icon: Ticket },
-  { href: "/wallet", label: "Wallet", icon: Wallet },
-];
-
 // Drawer spring physics — snappy open, smooth close + staggered children
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import type { Variants } from "framer-motion";
 
 const drawerVariants: Variants = {
@@ -40,6 +35,13 @@ const itemVariants: Variants = {
 };
 
 export default function MobileMenu({ user, role, authed, balance }: MobileMenuProps) {
+  const t = useTranslations("nav");
+  const links = [
+    { href: "/", label: t("home"), icon: Home },
+    { href: "/games", label: t("games"), icon: Gamepad2 },
+    { href: "/my-bets", label: t("myBets"), icon: Ticket },
+    { href: "/wallet", label: t("wallet"), icon: Wallet },
+  ];
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -143,13 +145,13 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
                     href="/login"
                     className="flex-1 rounded-md border border-white/15 px-3 py-2 text-center text-xs font-medium text-white/80 hover:bg-white/10"
                   >
-                    Log in
+                    {t("login")}
                   </Link>
                   <Link
                     href="/signup"
                     className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-xs font-semibold text-white"
                   >
-                    Sign up
+                    {t("signup")}
                   </Link>
                 </motion.div>
               )}
@@ -180,7 +182,7 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
                       className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white"
                     >
                       <UserCircle className="size-4 transition-transform duration-200 group-hover:scale-110" />
-                      My Profile
+                      {t("myProfile")}
                       <ChevronRight className="ml-auto size-4 opacity-40 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </Link>
                   </motion.div>
@@ -192,7 +194,7 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
                       className="mt-1 flex items-center gap-3 rounded-lg border border-primary/40 px-3 py-2.5 text-sm font-medium text-primary-light transition hover:bg-primary/10"
                     >
                       <Trophy className="size-4" />
-                      Admin Dashboard
+                      {t("admin")} Dashboard
                     </Link>
                   </motion.div>
                 )}
@@ -203,15 +205,18 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
                       className="mt-1 flex items-center gap-3 rounded-lg border border-amber-500/40 px-3 py-2.5 text-sm font-medium text-amber-400 transition hover:bg-amber-500/10"
                     >
                       <Briefcase className="size-4" />
-                      Agent Dashboard
+                      {t("agent")} Dashboard
                     </Link>
                   </motion.div>
                 )}
+                <motion.div variants={itemVariants} className="px-3 py-2">
+                  <LanguageSwitcher />
+                </motion.div>
               </nav>
 
               {/* Sports list */}
               <motion.div variants={itemVariants} className="flex-1 overflow-y-auto border-t border-white/10 px-3 py-2">
-                <p className="px-3 py-1 text-[10px] font-bold tracking-widest text-white/40">SPORTS</p>
+                <p className="px-3 py-1 text-[10px] font-bold tracking-widest text-white/40">{t("sportsTitle")}</p>
                 {sports.map((s) => (
                   <button
                     key={s.id}

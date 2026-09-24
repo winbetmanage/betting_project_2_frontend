@@ -36,8 +36,10 @@ import {
   ChevronDown,
   Activity,
   Eye,
+  ReceiptText,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { BetReceiptDialog, type ReceiptData } from "@/components/bets/BetReceipt";
 import {
   Dialog,
   DialogContent,
@@ -143,6 +145,7 @@ export default function BetGameSettlementPage() {
   const [calculating, setCalculating] = useState(false);
   const [settlingBetId, setSettlingBetId] = useState<string | null>(null);
   const [settleConfirmOpen, setSettleConfirmOpen] = useState(false);
+  const [ticketBet, setTicketBet] = useState<ReceiptData | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -197,21 +200,19 @@ export default function BetGameSettlementPage() {
     }
   };
 
-  // Preview-only: who won / lost and the expected profit — moves no money.
+  // Grades this game's legs + marks lost tickets (no money movement).
   const recalculate = async () => {
     setCalculating(true);
     try {
       const res = await api.post<{
         message: string;
-        data: Settlement & { meta?: { resultFinished: boolean; marketsResolved: number; previewWon: number; previewLost: number; previewVoid: number; previewUndecided: number; previewPayout: number; profit: number } };
+        data: Settlement & { meta?: { legsGraded: number; betsMarkedLost: number; profit: number } };
       }>(`/games/${id}/calculate`, {}, getAccessToken() ?? token);
       setData(res.data);
-      const c = res.data.counts;
       const m = res.data.meta;
+      const c = res.data.counts;
       toast.success(
-        m?.resultFinished
-          ? `${res.message} • settled so far — ${c.total} bets: ${c.won} won · ${c.lost} lost · ${c.void} void`
-          : "Calculated — game not finished yet"
+        `${res.message} • now ${c.total} bets: ${c.won} won · ${c.lost} lost · ${c.void} void (graded ${m?.legsGraded ?? 0} legs)`
       );
     } catch (e) {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Calculate failed");
@@ -374,7 +375,7 @@ export default function BetGameSettlementPage() {
           <CardTitle className="flex items-center gap-2"><Wallet className="size-5 text-primary" /> Settlement</CardTitle>
           <CardDescription>
             {data.result.finished
-              ? "Result is in from football-data. Calculate previews winners, losers and profit without moving money. Settle payment credits the winners and notifies them."
+              ? "Result is in from football-data. Calculate grades this game's legs and marks lost tickets (other games' legs untouched, no money moved). Settle payment credits the winners and notifies them."
               : "Settlement unlocks once the match is finished. The 10-minute job refreshes status automatically."}
           </CardDescription>
         </CardHeader>
@@ -638,6 +639,35 @@ export default function BetGameSettlementPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 gap-1"
+                            onClick={() => {
+                              const g = data.game;
+                              setTicketBet({
+                                id: b.id,
+                                type: b.legs.length > 1 ? "MULTIPLE" : "SINGLE",
+                                legs: b.legs.map((l) => ({
+                                  gameLabel: `${g.homeTeam} vs ${g.awayTeam}`,
+                                  marketName: l.marketName,
+                                  selectionName: l.selectionName,
+                                  odds: Number(l.odds),
+                                  result: l.result,
+                                })),
+                                stake: Number(b.stake),
+                                totalOdds: Number(b.totalOdds),
+                                potentialPayout: Number(b.potentialPayout),
+                                status: b.status,
+                                settledPayout: Number(b.settledPayout ?? 0) || null,
+                                placedAt: b.placedAt,
+                                settledAt: b.settledAt,
+                              });
+                            }}
+                          >
+                            <ReceiptText className="size-3.5" /> Ticket
+                          </Button>
                         {b.status === "PENDING" ? (
                           <Button
                             size="sm"
@@ -653,6 +683,7 @@ export default function BetGameSettlementPage() {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -669,6 +700,16 @@ export default function BetGameSettlementPage() {
           <span>Settlement is calculated from the football-data match result once the game is finished. This page updates after the 10-minute status sync or when you press Reload.</span>
         </div>
       )}
+
+      <BetReceiptDialog
+        open={!!ticketBet}
+        onOpenChange={(o) => { if (!o) setTicketBet(null); }}
+        data={ticketBet}
+        confirmLabel="Close"
+        cancelLabel=""
+        showPrint
+        onConfirm={() => setTicketBet(null)}
+      />
     </div>
   );
 }

@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
-import { Ticket } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BetReceiptDialog, type ReceiptData } from "@/components/bets/BetReceipt";
+import { Ticket, ReceiptText } from "lucide-react";
 
 type Bet = {
   id: string;
@@ -16,6 +18,19 @@ type Bet = {
   payoutStatus?: string;
   placedAt: string;
   user: { id: string; name: string | null; email: string } | null;
+};
+
+type BetDetail = Bet & {
+  settledPayout?: string | number | null;
+  settledAt?: string | null;
+  selections: {
+    oddsAtPlacement: string | number;
+    result: string;
+    selection: {
+      name: string;
+      market: { name: string; game: { homeTeam: string; awayTeam: string } | null } | null;
+    };
+  }[];
 };
 
 const statusStyle: Record<string, string> = {
@@ -36,6 +51,8 @@ export default function AdminBetsPage() {
   const [token, setToken] = useState<string | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [receiptBet, setReceiptBet] = useState<ReceiptData | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState<string | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -48,6 +65,39 @@ export default function AdminBetsPage() {
       .catch(() => setBets([]))
       .finally(() => setLoading(false));
   }, [token]);
+
+  const openReceipt = async (betId: string) => {
+    const t = getAccessToken() ?? token;
+    setReceiptLoading(betId);
+    try {
+      const res = await api.get<{ data: BetDetail }>(`/bets/${betId}`, t);
+      const b = res.data;
+      setReceiptBet({
+        id: b.id,
+        type: b.type,
+        legs: (b.selections ?? []).map((s) => ({
+          gameLabel: s.selection.market?.game
+            ? `${s.selection.market.game.homeTeam} vs ${s.selection.market.game.awayTeam}`
+            : "Game removed",
+          marketName: s.selection.market?.name ?? "Market",
+          selectionName: s.selection.name,
+          odds: Number(s.oddsAtPlacement),
+          result: s.result,
+        })),
+        stake: Number(b.stake),
+        totalOdds: Number(b.totalOdds),
+        potentialPayout: Number(b.potentialPayout),
+        status: b.status,
+        settledPayout: b.settledPayout != null ? Number(b.settledPayout) : null,
+        placedAt: b.placedAt,
+        settledAt: b.settledAt ?? null,
+      });
+    } catch {
+      setReceiptBet(null);
+    } finally {
+      setReceiptLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -94,11 +144,24 @@ export default function AdminBetsPage() {
                     {bet.payoutStatus}
                   </Badge>
                 )}
+                <Button size="sm" variant="outline" className="h-8" onClick={() => openReceipt(bet.id)} disabled={receiptLoading === bet.id}>
+                  <ReceiptText className="size-3.5" /> {receiptLoading === bet.id ? "Loading..." : "Receipt"}
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <BetReceiptDialog
+        open={!!receiptBet}
+        onOpenChange={(o) => { if (!o) setReceiptBet(null); }}
+        data={receiptBet}
+        confirmLabel="Close"
+        cancelLabel=""
+        showPrint
+        onConfirm={() => setReceiptBet(null)}
+      />
     </div>
   );
 }

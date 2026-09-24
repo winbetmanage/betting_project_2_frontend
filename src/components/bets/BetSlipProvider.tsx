@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 export type SlipLeg = {
@@ -15,7 +16,7 @@ export type SlipLeg = {
   odds: number;
 };
 
-export const MAX_SLIP_LEGS = 15;
+export const MAX_SLIP_LEGS = 30;
 
 const STORAGE_KEY = "betSlip.v1";
 
@@ -45,6 +46,7 @@ export function useBetSlip(): SlipContextValue {
 }
 
 export function BetSlipProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("home");
   const [legs, setLegs] = useState<SlipLeg[]>([]);
   const [stake, setStake] = useState("10");
   const [placing, setPlacing] = useState(false);
@@ -81,18 +83,18 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     (leg: SlipLeg) => {
       if (legs.some((l) => l.selectionId === leg.selectionId)) return true;
       if (legs.length >= MAX_SLIP_LEGS) {
-        toast.error(`A bet slip can contain at most ${MAX_SLIP_LEGS} selections`);
+        toast.error(t("maxLegs", { n: MAX_SLIP_LEGS }));
         return false;
       }
       const sameMarket = legs.find((l) => l.marketId === leg.marketId);
       if (sameMarket) {
-        toast.error(`Only one pick per market — "${leg.marketName}" is already on your slip`);
+        toast.error(t("onePickPerMarket", { market: leg.marketName }));
         return false;
       }
       setLegs((prev) => [...prev, leg]);
       return true;
     },
-    [legs]
+    [legs, t]
   );
 
   const remove = useCallback((selectionId: string) => setLegs((prev) => prev.filter((l) => l.selectionId !== selectionId)), []);
@@ -115,13 +117,13 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
 
   const place = useCallback(async (): Promise<{ betId?: string; error?: string }> => {
     const token = getAccessToken();
-    if (!token) return { error: "Please sign in to place a bet" };
+    if (!token) return { error: t("signinToBet") };
     if (getUser()?.role === "AGENT") {
-      toast.error("You need a user account to bet.");
-      return { error: "You need a user account to bet." };
+      toast.error(t("needUserAccount"));
+      return { error: t("needUserAccount") };
     }
-    if (legs.length === 0) return { error: "Add at least one selection first" };
-    if (Number(stake) <= 0) return { error: "Stake must be positive" };
+    if (legs.length === 0) return { error: t("addSelectionFirst") };
+    if (Number(stake) <= 0) return { error: t("enterStakePositive") };
     setPlacing(true);
     try {
       const res = await api.post<{ data: { id: string } }>(
@@ -132,11 +134,11 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       clear();
       return { betId: res.data.id };
     } catch (e) {
-      return { error: e instanceof Error ? e.message : "Could not place bet" };
+      return { error: e instanceof Error ? e.message : t("couldNotPlace") };
     } finally {
       setPlacing(false);
     }
-  }, [legs, stake, clear]);
+  }, [legs, stake, clear, t]);
 
   const value = useMemo<SlipContextValue>(
     () => ({ legs, stake, setStake, has, add, remove, toggle, clear, count: legs.length, totalOdds, potentialPayout, placing, place }),

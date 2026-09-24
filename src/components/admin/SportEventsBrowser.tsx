@@ -93,8 +93,8 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
   const [loading, setLoading] = useState(true);
   const [staging, setStaging] = useState(false);
   const [now, setNow] = useState<Date>(() => new Date());
-  const [stagedIds, setStagedIds] = useState<Set<string>>(new Set());
   const [detailsEvent, setDetailsEvent] = useState<OddsEvent | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const limit = 20;
 
   useEffect(() => {
@@ -104,15 +104,6 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(id);
-  }, []);
-
-  const loadStagedIds = useCallback(async (t: string | null) => {
-    try {
-      const res = await api.get<{ data: string[] }>("/fetch-games/staged/staged-ids", t);
-      setStagedIds(new Set(res.data ?? []));
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   const load = useCallback(async (p: number, s: string, force: boolean, t: string | null) => {
@@ -131,14 +122,13 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
       setTotal(res.total ?? 0);
       setTotalPages(res.totalPages ?? 1);
       if (res.page && res.page !== p) setPage(res.page);
-      loadStagedIds(t);
     } catch (e) {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : `Failed to load ${cfg.label} events`);
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [cfg.listPath, cfg.label, loadStagedIds]);
+  }, [cfg.listPath, cfg.label]);
 
   useEffect(() => {
     load(1, search, false, token);
@@ -153,17 +143,41 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
 
   const handleRefetch = () => load(page, search, true, getAccessToken() ?? token);
 
-  const handleStageAll = async () => {
+  const visibleIds = events.map((e) => e.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleIds));
+  };
+
+  const handleStageSelected = async (ids: string[]) => {
+    if (ids.length === 0) {
+      toast.info("Select at least one fixture first");
+      return;
+    }
     const t = getAccessToken() ?? token;
     setStaging(true);
     try {
       const res = await api.post<{ message: string; data: { added: number; alreadyStaged: number; createdTeams: string[]; unresolved: unknown[] } }>(
-        "/fetch-games/staged/fetch",
-        { choice },
+        "/fetch-games/staged/stage-selected",
+        { choice, eventIds: ids },
         t
       );
       const s = res.data;
-      toast.success(res.message || `Staged ${s.added} new game(s)`);
+      const bits = [`${s.added} added`, `${s.alreadyStaged} already staged`];
+      if (s.createdTeams.length) bits.push(`${s.createdTeams.length} team(s) auto-added`);
+      if (s.unresolved.length) bits.push(`${s.unresolved.length} skipped`);
+      toast.success(`${res.message} (${bits.join(", ")})`);
+      setSelectedIds(new Set());
       await load(1, search, false, t);
     } catch (e) {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Stage failed");
@@ -187,21 +201,21 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
             <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
               {choice === "premier-league" ? "soccer_epl" : "soccer_uefa_champs_league"}
             </span>{" "}
-            from The Odds API. Staging only adds new games — anything already staged is left untouched.
+            from The Odds API. Already-staged fixtures are hidden — select rows and add them to the staged queue.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={handleRefetch} disabled={loading} variant="outline" className="border-primary/20 text-primary hover:bg-primary/10">
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> {loading ? "Loading..." : "Refetch"}
           </Button>
-          <Button onClick={handleStageAll} disabled={staging} className="bg-secondary hover:bg-secondary/90 gap-1.5">
+          <Button onClick={() => handleStageSelected(Array.from(selectedIds))} disabled={staging || selectedIds.size === 0} className="bg-secondary hover:bg-secondary/90 gap-1.5">
             {staging ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={SPINNER} alt="" className="size-4" />
             ) : (
               <Download className="size-4" />
             )}
-            Stage New Fixtures
+            Add selected to staged ({selectedIds.size})
           </Button>
           <Badge variant="outline" className="border-primary/20 text-primary whitespace-nowrap">
             {total} events • Page {page}/{totalPages}
@@ -214,7 +228,7 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <cfg.Icon className="size-5 text-primary" /> {cfg.label} Fixtures
           </CardTitle>
-          <CardDescription>Search by team or id. Green check = already staged. Use “Stage New Fixtures” to pull every upcoming game into the staged queue.</CardDescription>
+          <CardDescription>Search by team or id. Tick rows, then add them to the staged queue.</CardDescription>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1 sm:max-w-sm">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -248,18 +262,33 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
                 <Table className="admin-cards">
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
+                      <TableHead className="w-[40px]">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAll}
+                          className="size-4 accent-white"
+                          aria-label="Select all on page"
+                        />
+                      </TableHead>
                       <TableHead className="text-white text-xs tracking-widest"><span className="flex items-center gap-1"><Hash className="size-3" /> ID</span></TableHead>
                       <TableHead className="text-white text-xs tracking-widest">HOME vs AWAY</TableHead>
                       <TableHead className="text-white text-xs tracking-widest"><span className="flex items-center gap-1"><Calendar className="size-3" /> COMMENCE</span></TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
                       <TableHead className="text-right text-white text-xs tracking-widest">ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {events.map((e) => {
-                      const staged = stagedIds.has(e.id);
-                      return (
-                        <TableRow key={e.id} className={staged ? "border-secondary/20 bg-secondary/10 hover:bg-secondary/15" : "border-border hover:bg-muted/50"}>
+                    {events.map((e) => (
+                        <TableRow key={e.id} className="border-border hover:bg-muted/50">
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(e.id)}
+                              onChange={() => toggleSelect(e.id)}
+                              className="size-4"
+                              aria-label={`Select ${e.home_team} vs ${e.away_team}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-mono text-xs max-w-[150px] truncate" title={e.id}>{e.id.slice(0, 8)}…</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -274,16 +303,12 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
                           </TableCell>
                           <TableCell className="font-mono text-xs">{formatRemaining(e.commence_time, now)}</TableCell>
                           <TableCell>
-                            {staged ? <Badge className="bg-secondary text-white text-[10px]">Staged</Badge> : <Badge variant="outline" className="border-white/10 text-[10px]">Not staged</Badge>}
-                          </TableCell>
-                          <TableCell>
                             <div className="flex justify-end">
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setDetailsEvent(e)}>Details</Button>
                             </div>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -333,13 +358,11 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
                 <div className="flex justify-between"><span className="text-muted-foreground">Away</span><span className="font-semibold">{detailsEvent.away_team}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Commence</span><span className="font-mono text-xs">{new Date(detailsEvent.commence_time).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Sport</span><span><Badge variant="outline">{detailsEvent.sport_key}</Badge></span></div>
-                <Separator className="bg-white/10" />
-                <div className="flex justify-between"><span className="text-muted-foreground">Staged?</span>{stagedIds.has(detailsEvent.id) ? <Badge className="bg-secondary text-white">Staged</Badge> : <Badge variant="outline">Not staged</Badge>}</div>
               </div>
               <DialogFooter>
                 <Button variant="outline" className="border-white/10" onClick={() => setDetailsEvent(null)}>Close</Button>
-                <Button className="bg-primary" onClick={() => { setDetailsEvent(null); handleStageAll(); }}>
-                  <Layers className="size-4" /> Stage New Fixtures
+                <Button className="bg-secondary" onClick={() => { const id = detailsEvent.id; setDetailsEvent(null); handleStageSelected([id]); }}>
+                  <Layers className="size-4" /> Add to staged
                 </Button>
               </DialogFooter>
             </div>

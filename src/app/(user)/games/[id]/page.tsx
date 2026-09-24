@@ -5,11 +5,20 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
+import { useTranslations } from "next-intl";
+import { marketHelpText, type HelpSelection } from "@/lib/marketHelp";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TeamLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
 import { isBettingWindowOpen, timeRemaining } from "@/lib/timeRemaining";
-import { ArrowLeft, Clock, Calendar, Trophy, CheckCircle2, XCircle, Minus, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, Trophy, CheckCircle2, XCircle, Minus, ShieldAlert, Info } from "lucide-react";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
 type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
@@ -25,18 +34,21 @@ type Game = {
 };
 
 export default function GameDetailPage() {
+  const t = useTranslations("games");
+  const tHelp = useTranslations("marketHelp");
   const params = useParams<{ id: string }>();
   const id = params?.id as string;
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(true);
   const [placed, setPlaced] = useState<string | null>(null);
+  const [helpSel, setHelpSel] = useState<HelpSelection | null>(null);
   const slip = useBetSlip();
 
   useEffect(() => {
-    const t = getAccessToken();
+    const tok = getAccessToken();
     setLoading(true);
     api
-      .get<{ data: Game }>(`/games/${id}`, t)
+      .get<{ data: Game }>(`/games/${id}`, tok)
       .then((res) => {
         const g = res.data;
         // Only allow betting on published, upcoming games
@@ -46,7 +58,7 @@ export default function GameDetailPage() {
           setGame(g);
         }
       })
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load game"))
+      .catch((e) => toast.error(e instanceof Error ? e.message : t("loadGameFailed")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -59,7 +71,7 @@ export default function GameDetailPage() {
   const togglePick = (sel: Selection, market: Market) => {
     if (!game) return;
     if (!isBettingWindowOpen(game.startTime, game.status)) {
-      toast.error("Betting window closed — kickoff is within 15 minutes");
+      toast.error(t("windowClosedToast"));
       return;
     }
     slip.toggle({
@@ -85,9 +97,9 @@ export default function GameDetailPage() {
   if (!game) {
     return (
       <div className="py-16 text-center">
-        <p className="text-sm font-medium">Game not found</p>
+        <p className="text-sm font-medium">{t("gameNotFound")}</p>
         <Link href="/games" className="mt-4 inline-block text-sm text-primary-light hover:underline">
-          Back to games
+          {t("backToGames")}
         </Link>
       </div>
     );
@@ -102,7 +114,7 @@ export default function GameDetailPage() {
   return (
     <div className="space-y-6">
       <Link href="/games" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white">
-        <ArrowLeft className="size-4" /> All games
+        <ArrowLeft className="size-4" /> {t("allGames")}
       </Link>
 
       {/* Header */}
@@ -114,7 +126,7 @@ export default function GameDetailPage() {
               <div className="text-xl font-bold">{game.homeTeam}</div>
               <div className="text-xs text-white/50">{game.competition?.name ?? ""}</div>
             </div>
-            <span className="text-white/40">vs</span>
+            <span className="text-white/40">{t("vs")}</span>
             <div>
               <div className="text-xl font-bold">{game.awayTeam}</div>
               <div className="text-xs text-white/50">{game.competition?.name ?? ""}</div>
@@ -137,8 +149,8 @@ export default function GameDetailPage() {
         <div className="flex items-start gap-3 rounded-xl border border-secondary/30 bg-secondary/10 p-4 text-sm">
           <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-secondary" />
           <div>
-            <p className="font-semibold">Bet placed successfully!</p>
-            <p className="mt-0.5 text-xs text-white/70">Reference: {placed}</p>
+            <p className="font-semibold">{t("betPlacedOk")}</p>
+            <p className="mt-0.5 text-xs text-white/70">{t("reference")}: {placed}</p>
           </div>
         </div>
       )}
@@ -146,22 +158,22 @@ export default function GameDetailPage() {
       {unavailable ? (
         <div className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-300">
           <ShieldAlert className="mt-0.5 size-5 shrink-0" />
-          <span>This game isn&apos;t accepting bets right now (not published or already finished).</span>
+          <span>{t("notAccepting")}</span>
         </div>
       ) : windowClosed ? (
         <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-300">
           <ShieldAlert className="mt-0.5 size-5 shrink-0" />
-          <span>Betting window closed — kickoff {countdown.text} (cutoff is 15 minutes before start).</span>
+          <span>{t("windowClosedNote", { when: countdown.text })}</span>
         </div>
       ) : openMarkets.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/60">
-          Odds aren&apos;t available yet for this game. Please check back later.
+          {t("noOddsYet")}
         </div>
       ) : (
         <>
           {/* Markets */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Markets & Odds</h2>
+            <h2 className="text-lg font-semibold">{t("marketsOdds")}</h2>
             {openMarkets.map((market) => (
               <div key={market.id} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
                 <div className="border-b border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80">{market.name}</div>
@@ -169,17 +181,35 @@ export default function GameDetailPage() {
                   {market.selections.map((sel) => {
                     const active = slip.has(sel.id);
                     return (
-                      <button
-                        key={sel.id}
-                        onClick={() => togglePick(sel, market)}
-                        className={`flex items-center justify-between px-4 py-3 text-sm transition ${active ? "bg-primary/40 text-white" : "bg-white/5 hover:bg-white/10"}`}
-                      >
-                        <span className="font-medium">{sel.name}</span>
-                        <span className="flex items-center gap-1.5">
-                          <span className={`font-bold ${active ? "text-primary-light" : "text-secondary"}`}>{Number(sel.odds).toFixed(2)}</span>
-                          {active && <span className="grid size-4 place-items-center rounded-full bg-secondary text-[10px] font-black text-white">✓</span>}
-                        </span>
-                      </button>
+                      <div key={sel.id} className="flex items-stretch">
+                        <button
+                          onClick={() => togglePick(sel, market)}
+                          className={`flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-sm transition ${active ? "bg-primary/40 text-white" : "bg-white/5 hover:bg-white/10"}`}
+                        >
+                          <span className="truncate font-medium">{sel.name}</span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <span className={`font-bold ${active ? "text-primary-light" : "text-secondary"}`}>{Number(sel.odds).toFixed(2)}</span>
+                            {active && <span className="grid size-4 place-items-center rounded-full bg-secondary text-[10px] font-black text-white">✓</span>}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={tHelp("whatDoesThisMean")}
+                          title={tHelp("whatDoesThisMean")}
+                          onClick={() =>
+                            setHelpSel({
+                              marketType: market.type,
+                              marketName: market.name,
+                              selectionName: sel.name,
+                              homeTeam: game.homeTeam,
+                              awayTeam: game.awayTeam,
+                            })
+                          }
+                          className="grid w-9 shrink-0 place-items-center border-l border-white/10 bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <Info className="size-4" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -190,10 +220,10 @@ export default function GameDetailPage() {
           {/* Bet slip summary (placement happens in the slip panel, bottom-right / bottom bar) */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold tracking-widest text-white/50">BET SLIP</div>
+              <div className="text-xs font-semibold tracking-widest text-white/50">{t("betSlipTitle")}</div>
               {slip.count > 0 && (
                 <span className="min-w-0 text-xs text-white/60">
-                  {slip.count} selection{slip.count === 1 ? "" : "s"} · odds {slip.totalOdds.toFixed(2)} · possible return ETB {slip.potentialPayout.toFixed(2)}
+                  {t("slipSummary", { count: slip.count, odds: slip.totalOdds.toFixed(2), ret: slip.potentialPayout.toFixed(2) })}
                 </span>
               )}
             </div>
@@ -208,14 +238,14 @@ export default function GameDetailPage() {
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="font-bold text-secondary">@ {l.odds.toFixed(2)}</span>
                       <button onClick={() => slip.remove(l.selectionId)} className="text-xs text-white/40 hover:text-white">
-                        Remove
+                        {t("remove")}
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-white/40">Tap an odds button to add a pick. Combine markets from the same or different games (one pick per market, max 15) — you&apos;ll confirm a receipt before the bet goes in.</p>
+              <p className="mt-3 text-sm text-white/40">{t("tapToAdd")}</p>
             )}
           </div>
         </>
@@ -223,8 +253,23 @@ export default function GameDetailPage() {
 
       {/* Balance hint */}
       <p className="flex items-center gap-1.5 text-xs text-white/40">
-        <ShieldAlert className="size-3.5" /> Your balance: ETB {Number(getUser()?.balance ?? 0).toFixed(2)} — responsible gambling.
+        <ShieldAlert className="size-3.5" /> {t("balanceHint", { bal: Number(getUser()?.balance ?? 0).toFixed(2) })}
       </p>
+
+      {/* What-does-this-mean dialog */}
+      <Dialog open={!!helpSel} onOpenChange={(o) => { if (!o) setHelpSel(null); }}>
+        <DialogContent className="sm:max-w-[440px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="size-5 text-primary" />
+              {helpSel ? marketHelpText(tHelp, helpSel).title : ""}
+            </DialogTitle>
+            <DialogDescription className="pt-1 text-sm leading-relaxed">
+              {helpSel ? marketHelpText(tHelp, helpSel).body : ""}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

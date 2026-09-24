@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getAccessToken, type AuthUser } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,13 +21,13 @@ type Transaction = {
 };
 
 const txLabel: Record<string, string> = {
-  DEPOSIT: "Deposit",
-  WITHDRAWAL: "Withdrawal",
-  BET_PLACED: "Bet placed",
-  BET_WON: "Bet won",
-  BET_REFUND: "Bet refund",
-  ADJUSTMENT: "Adjustment",
-  REFERRAL_BONUS: "Referral bonus",
+  DEPOSIT: "txDeposit",
+  WITHDRAWAL: "txWithdrawal",
+  BET_PLACED: "txBetPlaced",
+  BET_WON: "txBetWon",
+  BET_REFUND: "txBetRefund",
+  ADJUSTMENT: "txAdjustment",
+  REFERRAL_BONUS: "txReferralBonus",
 };
 
 type ProfileUser = AuthUser & {
@@ -36,6 +37,7 @@ type ProfileUser = AuthUser & {
 };
 
 export default function UserProfilePage() {
+  const t = useTranslations("profile");
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -50,12 +52,12 @@ export default function UserProfilePage() {
   }, []);
 
   useEffect(() => {
-    const t = token;
-    if (!t) return;
+    const tok = token;
+    if (!tok) return;
     setLoading(true);
     Promise.all([
-      api.get<{ data: AuthUser }>("/users/me", t).then((r) => r.data).catch(() => null),
-      api.get<{ data: { balance: number | string } }>("/wallet/balance", t).then((r) => Number(r.data.balance)).catch(() => null),
+      api.get<{ data: AuthUser }>("/users/me", tok).then((r) => r.data).catch(() => null),
+      api.get<{ data: { balance: number | string } }>("/wallet/balance", tok).then((r) => Number(r.data.balance)).catch(() => null),
     ])
       .then(([u, b]) => {
         setUser(u);
@@ -68,16 +70,16 @@ export default function UserProfilePage() {
           });
         }
       })
-      .catch(() => toast.error("Failed to load profile"))
+      .catch(() => toast.error(t("loadFailed")))
       .finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => {
-    const t = token;
-    if (!t) return;
+    const tok = token;
+    if (!tok) return;
     setTxLoading(true);
     api
-      .get<{ data: Transaction[] }>("/wallet/transactions", t)
+      .get<{ data: Transaction[] }>("/wallet/transactions", tok)
       .then((r) => setTransactions(r.data ?? []))
       .catch(() => setTransactions([]))
       .finally(() => setTxLoading(false));
@@ -87,9 +89,9 @@ export default function UserProfilePage() {
   const payoutReady = Boolean(user?.payoutAccountType && user?.payoutAccountNumber && user?.payoutAccountUsername);
 
   const savePayout = async () => {
-    const t = getAccessToken() ?? token;
+    const tok = getAccessToken() ?? token;
     if (!payout.type.trim() || !payout.number.trim() || !payout.username.trim()) {
-      toast.error("Fill account type, number and holder name");
+      toast.error(t("fillPayout"));
       return;
     }
     setSavingPayout(true);
@@ -97,12 +99,12 @@ export default function UserProfilePage() {
       const res = await api.patch<{ data: ProfileUser }>(
         "/users/me",
         { payoutAccountType: payout.type.trim(), payoutAccountNumber: payout.number.trim(), payoutAccountUsername: payout.username.trim() },
-        t
+        tok
       );
       setUser(res.data);
-      toast.success("Payout account saved");
+      toast.success(t("payoutSaved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save payout account");
+      toast.error(e instanceof Error ? e.message : t("payoutSaveFailed"));
     } finally {
       setSavingPayout(false);
     }
@@ -111,8 +113,8 @@ export default function UserProfilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">My Profile</h1>
-        <p className="mt-1 text-sm text-white/60">Your account details and wallet activity.</p>
+        <h1 className="text-2xl font-bold">{t("myProfile")}</h1>
+        <p className="mt-1 text-sm text-white/60">{t("profileSub")}</p>
       </div>
 
       {loading ? (
@@ -128,14 +130,14 @@ export default function UserProfilePage() {
               <div className="grid size-16 place-items-center rounded-2xl bg-primary text-2xl font-black text-white">{initial}</div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl font-bold">{user?.name || "Player"}</h2>
+                  <h2 className="text-xl font-bold">{user?.name || t("player")}</h2>
                   <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-light">{user?.role ?? "USER"}</span>
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/60">
                   <Mail className="size-4" /> {user?.email}
                 </p>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-white/50">
-                  <ShieldCheck className="size-3.5" /> Verified account
+                  <ShieldCheck className="size-3.5" /> {t("verified")}
                 </p>
               </div>
             </div>
@@ -145,20 +147,20 @@ export default function UserProfilePage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-5">
               <div className="flex items-center gap-1.5 text-xs text-secondary">
-                <Wallet className="size-4" /> BALANCE
+                <Wallet className="size-4" /> {t("balance")}
               </div>
               <div className="mt-1 text-3xl font-bold text-white">ETB {(balance ?? 0).toFixed(2)}</div>
-              <div className="mt-1 text-xs text-white/50">Available for betting</div>
+              <div className="mt-1 text-xs text-white/50">{t("availableBetting")}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-center gap-1.5 text-xs text-white/50">
-                <User className="size-4" /> NAME
+                <User className="size-4" /> {t("name")}
               </div>
               <div className="mt-1 text-lg font-semibold">{user?.name || "—"}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-center gap-1.5 text-xs text-white/50">
-                <Calendar className="size-4" /> ROLE
+                <Calendar className="size-4" /> {t("role")}
               </div>
               <div className="mt-1 text-lg font-semibold">{user?.role || "—"}</div>
             </div>
@@ -168,50 +170,50 @@ export default function UserProfilePage() {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Landmark className="size-4 text-secondary" /> Payout account
+                <Landmark className="size-4 text-secondary" /> {t("payoutAccount")}
               </div>
               {payoutReady ? (
-                <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-green-400">Ready for withdrawals</span>
+                <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-green-400">{t("readyWithdraw")}</span>
               ) : (
-                <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">Required before withdrawals</span>
+                <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">{t("requiredWithdraw")}</span>
               )}
             </div>
-            <p className="mt-1 text-xs text-white/50">Where your winnings are sent. Editable anytime — each withdrawal snapshots these details.</p>
+            <p className="mt-1 text-xs text-white/50">{t("payoutSub")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label>Account type</Label>
+                <Label>{t("accountType")}</Label>
                 <select
                   value={payout.type}
                   onChange={(e) => setPayout({ ...payout, type: e.target.value })}
                   className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none focus:border-secondary"
                 >
-                  <option value="" className="bg-black">Select type</option>
+                  <option value="" className="bg-black">{t("selectType")}</option>
                   {["TELEBIRR", "CBE_BIRR", "AMOLE", "BANK"].map((o) => (
                     <option key={o} value={o} className="bg-black">{o}</option>
                   ))}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label>Account number</Label>
+                <Label>{t("accountNumber")}</Label>
                 <Input value={payout.number} onChange={(e) => setPayout({ ...payout, number: e.target.value })} placeholder="09xxxxxxxx" className="bg-white/5" />
               </div>
               <div className="space-y-1.5">
-                <Label>Holder name</Label>
-                <Input value={payout.username} onChange={(e) => setPayout({ ...payout, username: e.target.value })} placeholder="Full name on the account" className="bg-white/5" />
+                <Label>{t("holderName")}</Label>
+                <Input value={payout.username} onChange={(e) => setPayout({ ...payout, username: e.target.value })} placeholder={t("holderPh")} className="bg-white/5" />
               </div>
             </div>
             <Button onClick={savePayout} disabled={savingPayout} className="mt-3 bg-secondary">
-              {savingPayout ? <Loader2 className="size-4 animate-spin" /> : null} Save payout account
+              {savingPayout ? <Loader2 className="size-4 animate-spin" /> : null} {t("savePayout")}
             </Button>
           </div>
 
           {/* Referral card */}
           <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-5">
             <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-primary-light">
-              <Gift className="size-4" /> REFER &amp; EARN
+              <Gift className="size-4" /> {t("referEarn")}
             </div>
             <p className="mt-2 text-sm text-white/70">
-              Share your link — when a friend signs up and makes their first deposit of <span className="font-semibold text-white">ETB 100+</span>, you get a <span className="font-semibold text-secondary">ETB 50</span> bonus.
+              {t("referLead")} <span className="font-semibold text-white">ETB 100+</span>{t("referMid")} <span className="font-semibold text-secondary">ETB 50</span>{t("referEnd")}
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
@@ -227,13 +229,13 @@ export default function UserProfilePage() {
                     const link = `${window.location.origin}/signup?ref=${user.referralCode}`;
                     navigator.clipboard
                       .writeText(link)
-                      .then(() => toast.success("Referral link copied!"))
-                      .catch(() => toast.error("Could not copy link"));
+                      .then(() => toast.success(t("linkCopied")))
+                      .catch(() => toast.error(t("copyFailed")));
                   }}
                   disabled={!user?.referralCode}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90 disabled:opacity-40"
                 >
-                  <Copy className="size-3.5" /> Copy
+                  <Copy className="size-3.5" /> {t("copy")}
                 </button>
               </div>
             </div>
@@ -241,7 +243,7 @@ export default function UserProfilePage() {
 
           {/* Transactions */}
           <div className="rounded-2xl border border-white/10 bg-white/5">
-            <div className="border-b border-white/10 px-5 py-3 text-sm font-semibold">Recent transactions</div>
+            <div className="border-b border-white/10 px-5 py-3 text-sm font-semibold">{t("recentTx")}</div>
             {txLoading ? (
               <div className="space-y-2 p-5">
                 {[1, 2, 3].map((i) => (
@@ -249,7 +251,7 @@ export default function UserProfilePage() {
                 ))}
               </div>
             ) : transactions.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-white/40">No transactions yet.</div>
+              <div className="px-5 py-10 text-center text-sm text-white/40">{t("noTx")}</div>
             ) : (
               <div className="divide-y divide-white/5">
                 {transactions.slice(0, 10).map((tx) => {
@@ -263,7 +265,7 @@ export default function UserProfilePage() {
                           <ArrowUpCircle className="size-4 text-red-400" />
                         )}
                         <div>
-                          <div className="font-medium">{txLabel[tx.type] ?? tx.type}</div>
+                          <div className="font-medium">{t(txLabel[tx.type] ?? tx.type)}</div>
                           <div className="text-xs text-white/40">{new Date(tx.createdAt).toLocaleString()}</div>
                         </div>
                       </div>
@@ -281,7 +283,7 @@ export default function UserProfilePage() {
           </div>
 
           <Link href="/games" className="inline-flex items-center gap-1.5 text-sm text-primary-light hover:underline">
-            <Activity className="size-4" /> Browse games to place bets
+            <Activity className="size-4" /> {t("browseBets")}
           </Link>
         </>
       )}

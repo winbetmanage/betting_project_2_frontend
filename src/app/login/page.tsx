@@ -6,6 +6,7 @@ import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import { api } from "@/lib/api";
 import { isAuthenticated, setSession, getUser, getUserRole, type AuthUser } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 function EmailIcon() {
@@ -26,6 +27,7 @@ function LockIcon() {
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +64,8 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to keep the action going"
+      title={t("welcomeBack")}
+      subtitle={t("signinSubtitle")}
       tagline="Live odds · Fan favorites · 24/7"
     >
       <form
@@ -78,7 +80,7 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-white/80" htmlFor="email">
-            Email
+            {t("email")}
           </label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/60">
@@ -98,7 +100,7 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-white/80" htmlFor="password">
-            Password
+            {t("password")}
           </label>
           <div className="relative">
             <LockIcon />
@@ -119,13 +121,13 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? t("signingIn") : t("signin")}
         </button>
 
         <p className="text-center text-sm text-white/60">
-          Don&apos;t have an account?{" "}
+          {t("noAccount")}{" "}
           <Link href="/signup" className="font-semibold text-primary-light underline-offset-4 hover:underline">
-            Sign up
+            {t("signup")}
           </Link>
         </p>
       </form>

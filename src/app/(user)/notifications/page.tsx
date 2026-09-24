@@ -4,21 +4,23 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Bell, CheckCheck } from "lucide-react";
 import type { UINotification } from "@/components/notifications/NotificationBell";
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: (key: string, vals?: Record<string, string | number>) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return "just now";
+  if (diff < 60000) return t("justNow");
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t("minAgo", { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return t("hrAgo", { n: hrs });
+  return t("dayAgo", { n: Math.floor(hrs / 24) });
 }
 
 export default function UserNotificationsPage() {
+  const t = useTranslations("notifications");
   const router = useRouter();
   const [items, setItems] = useState<UINotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ export default function UserNotificationsPage() {
       );
       setItems(res.data ?? []);
     } catch (e) {
-      toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed to load notifications");
+      toast.error(e instanceof ApiError || e instanceof Error ? e.message : t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -61,9 +63,9 @@ export default function UserNotificationsPage() {
     try {
       await api.post("/notifications/read-all", {}, getAccessToken());
       setItems((prev) => prev.map((x) => ({ ...x, isRead: true })));
-      toast.success("All marked as read");
+      toast.success(t("markedAll"));
     } catch (e) {
-      toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed");
+      toast.error(e instanceof ApiError || e instanceof Error ? e.message : t("markFailed"));
     } finally {
       setMarking(false);
     }
@@ -76,10 +78,10 @@ export default function UserNotificationsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Bell className="size-6 text-secondary" /> Notifications
+            <Bell className="size-6 text-secondary" /> {t("notifications")}
           </h1>
           <p className="mt-1 text-sm text-white/60">
-            {unread > 0 ? `${unread} unread` : "You're all caught up."} Deposit, withdrawal and referral updates land here.
+            {unread > 0 ? t("unreadN", { n: unread }) : t("caughtUp")} {t("notifSub")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -87,14 +89,14 @@ export default function UserNotificationsPage() {
             onClick={() => setUnreadOnly((v) => !v)}
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${unreadOnly ? "border-secondary bg-secondary/15 text-secondary" : "border-white/15 text-white/60 hover:text-white"}`}
           >
-            Unread only
+            {t("unreadOnly")}
           </button>
           <button
             onClick={markAll}
             disabled={marking || unread === 0}
             className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-white transition hover:bg-secondary/90 disabled:opacity-50"
           >
-            <CheckCheck className="size-4" /> Mark all read
+            <CheckCheck className="size-4" /> {t("markAllRead")}
           </button>
         </div>
       </div>
@@ -106,7 +108,7 @@ export default function UserNotificationsPage() {
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-sm text-white/50">
-          No notifications{unreadOnly ? " matching this filter" : " yet"}.
+          {t("noNotif")}{unreadOnly ? t("matchingFilter") : t("yet")}.
         </div>
       ) : (
         <div className="space-y-2">
@@ -120,7 +122,7 @@ export default function UserNotificationsPage() {
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold">{n.title}</span>
                 {n.message && <span className="mt-0.5 block text-xs text-white/60">{n.message}</span>}
-                <span className="mt-1 block text-[11px] text-white/35">{timeAgo(n.createdAt)}</span>
+                <span className="mt-1 block text-[11px] text-white/35">{timeAgo(n.createdAt, t)}</span>
               </span>
             </button>
           ))}

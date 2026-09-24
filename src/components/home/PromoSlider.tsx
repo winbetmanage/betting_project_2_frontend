@@ -2,28 +2,29 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { HeroBackground } from "./HeroBackground";
 
 const slides = [
   {
     id: 1,
-    title: "GET THE BEST ODDS ON TOP GAMES",
-    subtitle: "Live odds • 24/7 • Trusted by thousands",
-    badge: "Up to 100% Bonus",
+    titleKey: "promo1Title",
+    subtitleKey: "promo1Sub",
+    badgeKey: "promo1Badge",
     gradient: "from-[#0a0f2e] via-[#0a0f2e]/80 to-transparent",
   },
   {
     id: 2,
-    title: "BET ON PREMIER LEAGUE",
-    subtitle: "Exclusive markets & competitive odds",
-    badge: "Best Prices",
+    titleKey: "promo2Title",
+    subtitleKey: "promo2Sub",
+    badgeKey: "promo2Badge",
     gradient: "from-[#1a0540] via-[#1a0540]/80 to-transparent",
   },
   {
     id: 3,
-    title: "WELCOME BONUS AVAILABLE",
-    subtitle: "Sign up today and claim your bonus",
-    badge: "New Players",
+    titleKey: "promo3Title",
+    subtitleKey: "promo3Sub",
+    badgeKey: "promo3Badge",
     gradient: "from-[#0a1f3e] via-[#0a1f3e]/80 to-transparent",
   },
 ];
@@ -35,6 +36,7 @@ const slideVariants = {
 };
 
 export default function PromoSlider() {
+  const t = useTranslations("home");
   const [[page, dir], setPage] = useState([0, 0]);
   const index = page % slides.length;
 
@@ -44,8 +46,8 @@ export default function PromoSlider() {
   );
 
   useEffect(() => {
-    const t = setInterval(() => paginate(1), 5000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => paginate(1), 5000);
+    return () => clearInterval(timer);
   }, [paginate]);
 
   return (
@@ -66,15 +68,15 @@ export default function PromoSlider() {
           <div className="relative z-20 flex items-center justify-between p-4 sm:p-6 min-h-[120px]">
             <div>
               <p className="text-xs font-bold tracking-widest text-[#ff8c00]">
-                {slides[index].title}
+                {t(slides[index].titleKey)}
               </p>
               <p className="mt-1 text-xs text-white/60 hidden sm:block">
-                {slides[index].subtitle}
+                {t(slides[index].subtitleKey)}
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2">
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">
-                {slides[index].badge}
+                {t(slides[index].badgeKey)}
               </span>
             </div>
           </div>
