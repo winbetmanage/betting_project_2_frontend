@@ -6,7 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeCustomProvider } from "@/lib/theme";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
-
+//comment
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
