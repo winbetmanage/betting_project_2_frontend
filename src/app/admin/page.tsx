@@ -115,7 +115,7 @@ export default function AdminDashboard() {
               </div>
               <ApiStatus variant="nav" />
             </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Adminx dashboard</h1>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Admin dashboard</h1>
             <p className="mt-1 max-w-lg text-sm text-white/80">Manage games, markets and monitor bets. Real-time oversight for your betting platform.</p>
           </div>
           <div className="flex gap-2">
