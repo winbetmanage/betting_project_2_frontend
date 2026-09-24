@@ -111,7 +111,7 @@ export default function AdminDashboard() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur">
-                <Sparkles className="size-3.5" /> Tana Betting Adminn
+                <Sparkles className="size-3.5" /> Tana Betting Admin
               </div>
               <ApiStatus variant="nav" />
             </div>
