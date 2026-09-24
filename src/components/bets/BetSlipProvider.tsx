@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 
 export type SlipLeg = {
@@ -116,6 +116,10 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const place = useCallback(async (): Promise<{ betId?: string; error?: string }> => {
     const token = getAccessToken();
     if (!token) return { error: "Please sign in to place a bet" };
+    if (getUser()?.role === "AGENT") {
+      toast.error("You need a user account to bet.");
+      return { error: "You need a user account to bet." };
+    }
     if (legs.length === 0) return { error: "Add at least one selection first" };
     if (Number(stake) <= 0) return { error: "Stake must be positive" };
     setPlacing(true);

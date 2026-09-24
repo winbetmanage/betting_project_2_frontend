@@ -21,10 +21,12 @@ import {
   Gift,
   AlertTriangle,
   Layers,
+  LayoutGrid,
   Star,
   ReceiptText,
   Banknote,
   Bell,
+  UserX,
 } from "lucide-react";
 
 import {
@@ -47,22 +49,27 @@ import SignOutButton from "@/components/auth/SignOutButton";
 const mainItems = [
   { key: "dashboard", title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { key: "notifications", title: "Notifications", url: "/admin/notifications", icon: Bell },
-  { key: "games", title: "Games", url: "/admin/games", icon: Trophy },
-  { key: "bets", title: "Bets", url: "/admin/bets", icon: Ticket },
-  { key: "bet-games", title: "Bet Games", url: "/admin/bet-games", icon: ReceiptText },
 ];
 
 const manageItems = [
+  { key: "games", title: "Games", url: "/admin/games", icon: Trophy },
+  { key: "bets", title: "Bets", url: "/admin/bets", icon: Ticket },
+  { key: "bet-games", title: "Bet Games", url: "/admin/bet-games", icon: ReceiptText },
   { key: "active-games", title: "Active Games", url: "/admin/games/active", icon: Activity },
   { key: "ended-games", title: "Ended Games", url: "/admin/games/ended", icon: Flag },
+  { key: "staged-games", title: "Staged Games", url: "/admin/fetch-games/staged", icon: Layers },
+];
+
+const moneyItems = [
   { key: "wallet", title: "Wallet", url: "/admin/wallet", icon: Wallet },
+  { key: "withdrawal-requests", title: "Withdrawal Requests", url: "/admin/users/withdrawal-requests", icon: Banknote },
+  { key: "referral-bonus", title: "Referral Bonus", url: "/admin/users/referral-bonus", icon: Gift },
 ];
 
 const usersItems = [
   { key: "users", title: "Users", url: "/admin/users", icon: Users },
+  { key: "inactive-users", title: "Inactive Users", url: "/admin/users/inactive", icon: UserX },
   { key: "devices", title: "Devices Info", url: "/admin/users/devices", icon: Smartphone },
-  { key: "referral-bonus", title: "Referral Bonus", url: "/admin/users/referral-bonus", icon: Gift },
-  { key: "withdrawal-requests", title: "Withdrawal Requests", url: "/admin/users/withdrawal-requests", icon: Banknote },
 ];
 
 // Returns which sidebar key is active given a pathname.
@@ -77,6 +84,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/bet-games")) return "bet-games";
   if (pathname.startsWith("/admin/bets")) return "bets";
   if (pathname.startsWith("/admin/users/devices")) return "devices";
+  if (pathname.startsWith("/admin/users/inactive")) return "inactive-users";
   if (pathname.startsWith("/admin/users/referral-bonus")) return "referral-bonus";
   if (pathname.startsWith("/admin/users/withdrawal-requests")) return "withdrawal-requests";
   if (pathname.startsWith("/admin/users")) return "users";
@@ -86,6 +94,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/fetch-games/premier-league")) return "premier-league";
   if (pathname.startsWith("/admin/fetch-games/champions-league")) return "champions-league";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
+  if (pathname.startsWith("/admin/information/markets")) return "markets";
   if (pathname.startsWith("/admin/settings/theme")) return "theme";
   if (pathname.startsWith("/admin/settings/general")) return "general";
   if (pathname.startsWith("/admin/settings/transfer-accounts")) return "transfer-accounts";
@@ -126,23 +135,6 @@ export function AdminSidebar() {
           <ShieldCheck className="size-5 text-secondary shrink-0 group-data-[collapsible=icon]:hidden" />
         </div>
 
-        {/* Admin profile card - clickable -> profile page */}
-        <Link href="/admin/profile" className="mx-3 mb-3 block rounded-xl bg-gradient-to-br from-primary to-primary/70 p-3 text-white shadow-lg shadow-primary/20 transition hover:from-primary/90 hover:to-primary/60 group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white/20 text-sm font-black backdrop-blur">
-              {user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? "A"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{user?.name ?? "Administrator"}</div>
-              <div className="truncate text-xs text-white/70">{user?.email}</div>
-            </div>
-            <ArrowUpRight className="size-4 text-white/60" />
-          </div>
-          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold backdrop-blur">
-            <span className="size-1.5 rounded-full bg-secondary animate-pulse" />
-            Live • Tana Betting
-          </div>
-        </Link>
         <SidebarSeparator className="mb-2 bg-white/10" />
       </SidebarHeader>
 
@@ -169,7 +161,7 @@ export function AdminSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">MANAGEMENT</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">GAME MANAGEMENT</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {manageItems.map((item) => (
@@ -190,41 +182,9 @@ export function AdminSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">USER MANAGEMENT</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {usersItems.map((item) => (
-                <SidebarMenuItem key={item.key}>
-                  <SidebarMenuButton
-                    render={<Link href={item.url} />}
-                    isActive={activeKey === item.key}
-                    tooltip={item.title}
-                    className={dimItemClass(item.key)}
-                  >
-                    <item.icon className="size-4" />
-                    <span className="flex-1 truncate">{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">FETCH GAMES</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/admin/fetch-games/staged" />}
-                  isActive={activeKey === "staged-games"}
-                  tooltip="Staged Games"
-                  className={itemClass("staged-games")}
-                >
-                  <Layers className="size-4" />
-                  <span>Staged Games</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   render={<Link href="/admin/fetch-games/premier-league" />}
@@ -263,6 +223,48 @@ export function AdminSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">MONEY MANAGEMENT</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {moneyItems.map((item) => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    render={<Link href={item.url} />}
+                    isActive={activeKey === item.key}
+                    tooltip={item.title}
+                    className={dimItemClass(item.key)}
+                  >
+                    <item.icon className="size-4" />
+                    <span className="flex-1 truncate">{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">USER MANAGEMENT</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {usersItems.map((item) => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    render={<Link href={item.url} />}
+                    isActive={activeKey === item.key}
+                    tooltip={item.title}
+                    className={dimItemClass(item.key)}
+                  >
+                    <item.icon className="size-4" />
+                    <span className="flex-1 truncate">{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">INFORMATION</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -275,6 +277,17 @@ export function AdminSidebar() {
                 >
                   <Trophy className="size-4" />
                   <span>Games List</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/information/markets" />}
+                  isActive={activeKey === "markets"}
+                  tooltip="Markets"
+                  className={itemClass("markets")}
+                >
+                  <LayoutGrid className="size-4" />
+                  <span>Markets</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

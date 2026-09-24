@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { api, ApiError } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
@@ -22,12 +24,13 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import { Users, ShieldCheck, Crown, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
+import { Users, ShieldCheck, Crown, Briefcase, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
+
+const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT"] as const;
 
 const editSchema = z.object({
   name: z.string().max(100).optional().or(z.literal("")),
-  role: z.enum(["USER", "ADMIN", "ODDS_MANAGER"]).optional(),
+  role: z.enum(ALL_ROLES).optional(),
   isActive: z.boolean().optional(),
   balance: z.coerce.number().min(0).optional(),
 });
@@ -49,13 +52,13 @@ type UserRow = {
 };
 
 export default function AdminUsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const [selected, setSelected] = useState<UserRow | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({});
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditForm, string>>>({});
@@ -93,11 +96,29 @@ export default function AdminUsersPage() {
   }, [search]);
 
   const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ODDS_MANAGER");
+  const agents = users.filter((u) => u.role === "AGENT");
   const regulars = users.filter((u) => u.role === "USER");
 
+  const roleBadgeClass = (role: string) =>
+    role === "ADMIN"
+      ? "bg-primary text-white"
+      : role === "ODDS_MANAGER"
+        ? "bg-secondary text-white"
+        : role === "AGENT"
+          ? "bg-amber-500 text-white"
+          : "bg-muted text-foreground border-border";
+
+  const avatarClass = (role: string) =>
+    role === "ADMIN"
+      ? "bg-primary"
+      : role === "ODDS_MANAGER"
+        ? "bg-secondary"
+        : role === "AGENT"
+          ? "bg-amber-500"
+          : "bg-muted text-foreground";
+
   const openDetails = (u: UserRow) => {
-    setSelected(u);
-    setDetailsOpen(true);
+    router.push(`/admin/users/${u.id}`);
   };
 
   const openEdit = (u?: UserRow) => {
@@ -111,8 +132,7 @@ export default function AdminUsersPage() {
       balance: Number(target.balance),
     });
     setEditErrors({});
-    setDetailsOpen(false);
-    setTimeout(() => setEditOpen(true), 100);
+    setEditOpen(true);
   };
 
   const handleEdit = async () => {
@@ -163,7 +183,6 @@ export default function AdminUsersPage() {
       await api.delete(`/users/${selected.id}`, t);
       toast.success("User deleted (or deactivated if has transactions)");
       setDeleteOpen(false);
-      setDetailsOpen(false);
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Delete failed");
@@ -209,7 +228,7 @@ export default function AdminUsersPage() {
                   <TableRow key={u.id} className="border-border hover:bg-muted/50">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className={`grid size-9 place-items-center rounded-full text-white text-xs font-bold ${u.role === "ADMIN" ? "bg-primary" : u.role === "ODDS_MANAGER" ? "bg-secondary" : "bg-muted text-foreground"}`}>
+                        <div className={`grid size-9 place-items-center rounded-full text-white text-xs font-bold ${avatarClass(u.role)}`}>
                           {u.name?.[0]?.toUpperCase() ?? u.email[0].toUpperCase()}
                         </div>
                         <div>
@@ -226,7 +245,7 @@ export default function AdminUsersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={u.role === "ADMIN" ? "bg-primary text-white" : u.role === "ODDS_MANAGER" ? "bg-secondary text-white" : "bg-muted text-foreground border-border"} variant="outline">
+                      <Badge className={roleBadgeClass(u.role)} variant="outline">
                         {u.role}
                       </Badge>
                     </TableCell>
@@ -302,7 +321,7 @@ export default function AdminUsersPage() {
             <Users className="size-3.5" /> Manage Bettors
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">All registered accounts — admins on top, players below. Details, edit & delete.</p>
+          <p className="text-sm text-muted-foreground">All registered accounts — admins on top, agents in the middle, players below. Details, edit & delete.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-1.5 shadow-sm">
@@ -328,79 +347,8 @@ export default function AdminUsersPage() {
       </div>
 
       <UserTable data={admins} title="Admins & Betting Managers" subtitle="Privileged accounts — shown on top as requested" icon={ShieldCheck} />
+      <UserTable data={agents} title="Agents" subtitle="Agent accounts — between admins and players" icon={Briefcase} />
       <UserTable data={regulars} title="Players (Users)" subtitle="Regular bettors — full edit & delete controls" icon={UserIcon} />
-
-      {/* Details */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="grid size-8 place-items-center rounded-lg bg-primary text-white">
-                <UserIcon className="size-4" />
-              </div>
-              User Details
-            </DialogTitle>
-            <DialogDescription className="font-mono text-xs">{selected?.id}</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-xs text-muted-foreground">Name</div>
-                  <div className="font-medium">{selected.name || "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Email</div>
-                  <div className="flex items-center gap-1">
-                    <Mail className="size-3" /> {selected.email}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Role</div>
-                  <Badge className={selected.role === "ADMIN" ? "bg-primary text-white" : selected.role === "ODDS_MANAGER" ? "bg-secondary text-white" : "bg-muted"}>{selected.role}</Badge>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Status</div>
-                  <Badge className={selected.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive"}>{selected.isActive ? "Active" : "Inactive"}</Badge>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Balance</div>
-                  <div className="font-mono font-semibold">${Number(selected.balance).toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Verified</div>
-                  <div>{selected.emailVerified ? "Yes" : "No"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Bets</div>
-                  <div>{selected._count.bets}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Transactions</div>
-                  <div>{selected._count.transactions}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Joined</div>
-                  <div className="text-xs">{new Date(selected.createdAt).toLocaleString()}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Last Login</div>
-                  <div className="text-xs">{selected.lastLoginAt ? new Date(selected.lastLoginAt).toLocaleString() : "—"}</div>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex gap-2">
-                <Button onClick={() => openEdit()} className="flex-1 bg-primary">
-                  <Pencil className="size-4" /> Edit
-                </Button>
-                <Button variant="destructive" onClick={() => setDeleteOpen(true)} className="flex-1">
-                  <Trash2 className="size-4" /> Delete
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Edit */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -427,6 +375,7 @@ export default function AdminUsersPage() {
                   <SelectItem value="USER">USER</SelectItem>
                   <SelectItem value="ADMIN">ADMIN</SelectItem>
                   <SelectItem value="ODDS_MANAGER">ODDS_MANAGER</SelectItem>
+                  <SelectItem value="AGENT">AGENT</SelectItem>
                 </SelectContent>
               </Select>
             </div>

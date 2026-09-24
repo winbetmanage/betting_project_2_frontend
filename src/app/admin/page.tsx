@@ -23,6 +23,7 @@ type GameRow = {
   competition: { name: string; sport: { name: string } | null } | null;
   markets: MarketRow[];
 };
+type BetAgg = { betCount: number; totalStaked: number | string };
 
 const quickActions = [
   { href: "/admin/bet-games", label: "Bet Games", desc: "Bets & settlement per game", icon: ReceiptText, iconBg: "bg-primary/15 text-primary" },
@@ -62,6 +63,7 @@ export default function AdminDashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [stats, setStats] = useState({ sports: 0, games: 0, bets: 0 });
   const [activeGames, setActiveGames] = useState<GameRow[]>([]);
+  const [betAggs, setBetAggs] = useState<Record<string, BetAgg>>({});
   const [notifications, setNotifications] = useState<UINotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState<Date>(() => new Date());
@@ -82,13 +84,19 @@ export default function AdminDashboard() {
       api.get<{ data: unknown[] }>("/sports", t).then((r) => r.data.length).catch(() => 0),
       api.get<{ data: unknown[] }>("/games", t).then((r) => r.data.length).catch(() => 0),
       api.get<{ data: unknown[] }>("/bets", t).then((r) => r.data.length).catch(() => 0),
-      api.get<{ data: GameRow[] }>("/games?limit=100&include=markets", t).then((r) => r.data?.filter((g) => ["SCHEDULED", "LIVE", "SUSPENDED"].includes(g.status)) ?? []).catch(() => []),
+      api.get<{ data: GameRow[] }>("/games?limit=100&include=markets", t).then((r) => r.data?.filter((g) => g.isPublished && g.status !== "FINISHED" && g.status !== "CANCELLED") ?? []).catch(() => []),
       api.get<{ data: UINotification[] }>("/notifications/admin?limit=5", t).then((r) => r.data ?? []).catch(() => []),
+      api.get<{ data: ({ id: string; betCount: number; totalStaked: number | string })[] }>("/games/settlement-list", t).then((r) => {
+        const map: Record<string, BetAgg> = {};
+        for (const g of r.data ?? []) map[g.id] = { betCount: g.betCount, totalStaked: g.totalStaked };
+        return map;
+      }).catch(() => ({})),
     ])
-      .then(([sports, games, bets, active, notifs]) => {
+      .then(([sports, games, bets, active, notifs, aggs]) => {
         setStats({ sports, games, bets });
         setActiveGames(active);
         setNotifications(notifs);
+        setBetAggs(aggs);
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -271,7 +279,7 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Active Games */}
+      {/* Active Games — published & not finished, with stakes + money */}
       <Card className="border-border bg-card shadow-sm">
         <CardHeader className="border-b border-border">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -279,21 +287,28 @@ export default function AdminDashboard() {
               <Trophy className="size-5 text-primary" /> Active Games              <Badge variant="secondary" className="ml-1 bg-primary/15 text-primary border-primary/20">
                 {activeGames.length}
               </Badge>
+              <Badge variant="outline" className="border-secondary/30 text-secondary">
+                <Ticket className="size-3" /> {activeGames.reduce((a, g) => a + (betAggs[g.id]?.betCount ?? 0), 0)} stakes
+              </Badge>
+              <Badge variant="outline" className="border-secondary/30 text-secondary">
+                <Wallet className="size-3" /> ETB {activeGames.reduce((a, g) => a + Number(betAggs[g.id]?.totalStaked ?? 0), 0).toFixed(2)}
+              </Badge>
             </CardTitle>
             <Button nativeButton={false} render={<Link href="/admin/games/active" />} variant="outline" size="sm" className="h-8">
               View all <ArrowUpRight className="size-3" />
             </Button>
           </div>
-          <CardDescription>Upcoming, live or paused games — with publish status, market count and time left.</CardDescription>
+          <CardDescription>Published games that are not finished — kickoff time, hours left, stakes placed and money staked.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {activeGames.length === 0 ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">No active games right now.</div>
+            <div className="py-10 text-center text-sm text-muted-foreground">No published games in play right now.</div>
           ) : (
             <div className="divide-y divide-border">
               {activeGames.map((g) => {
                 const totalOptions = g.markets?.reduce((a, m) => a + (m.selections?.length ?? 0), 0) ?? 0;
                 const time = formatTimeLeft(g.startTime, g.status, now);
+                const agg = betAggs[g.id];
                 return (
                   <Link
                     key={g.id}
@@ -312,6 +327,11 @@ export default function AdminDashboard() {
                         <LeagueLogo league={g.competition?.name} className="size-3.5" />
                         <span>{g.competition?.sport?.name ?? "—"} • {g.competition?.name ?? "—"}</span>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Clock className="size-3.5 text-muted-foreground" />
+                      <span className="text-muted-foreground">{new Date(g.startTime).toLocaleString()}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -334,6 +354,17 @@ export default function AdminDashboard() {
                       <Activity className="size-3.5 text-muted-foreground" />
                       <span className="font-semibold">{totalOptions}</span>
                       <span className="text-muted-foreground">options</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Ticket className="size-3.5 text-muted-foreground" />
+                      <span className="font-semibold">{agg?.betCount ?? 0}</span>
+                      <span className="text-muted-foreground">stakes</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Wallet className="size-3.5 text-muted-foreground" />
+                      <span className="font-mono font-semibold">ETB {Number(agg?.totalStaked ?? 0).toFixed(2)}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 text-xs">

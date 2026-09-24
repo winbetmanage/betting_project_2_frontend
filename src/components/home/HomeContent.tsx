@@ -27,6 +27,7 @@ import {
   Wallet,
   UserCircle,
   ArrowRight,
+  Briefcase,
 } from "lucide-react";
 
 type Sport = {
@@ -864,6 +865,26 @@ function UserHome() {
   return <BetLabDashboard isGuest={false} />;
 }
 
+function AgentBanner() {
+  const router = useRouter();
+  return (
+    <div className="border-b border-amber-500/20 bg-amber-500/10">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-2 px-4 py-2 text-xs">
+        <Briefcase className="size-4 text-amber-600" />
+        <span className="font-medium text-amber-700 dark:text-amber-400">
+          Signed in as an agent — browsing only, betting is disabled on this account.
+        </span>
+        <button
+          onClick={() => router.push("/agent")}
+          className="ml-auto rounded-md bg-amber-500 px-3 py-1.5 font-semibold text-white transition hover:bg-amber-500/90"
+        >
+          Return to Agent Dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PublicHome() {
   return <BetLabDashboard isGuest={true} />;
 }
@@ -890,6 +911,8 @@ export default function HomeContent() {
     if (authed && role === "ADMIN") {
       router.replace("/admin");
     }
+    // NOTE: AGENT is intentionally not redirected — agents land on /agent at
+    // login time, but must still be able to visit "/" via "View Site".
   }, [mounted, authed, role, router]);
 
   if (!mounted) {
@@ -912,6 +935,15 @@ export default function HomeContent() {
 
   if (!authed) {
     return <PublicHome />;
+  }
+
+  if (role === "AGENT") {
+    return (
+      <>
+        <AgentBanner />
+        <UserHome />
+      </>
+    );
   }
 
   return <UserHome />;

@@ -216,6 +216,10 @@ export default function StagedGamesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Clear finished
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
   useEffect(() => {
     setToken(getAccessToken());
   }, []);
@@ -304,6 +308,26 @@ export default function StagedGamesPage() {
       toast.error(errMessage(e, "Delete failed"));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleClearFinished = async () => {
+    setClearing(true);
+    try {
+      const res = await api.post<{ message: string; data: { deleted: number } }>(
+        "/fetch-games/staged/clear-finished",
+        {},
+        getAccessToken() ?? token
+      );
+      toast.success(res.message || `Cleared ${res.data?.deleted ?? 0} finished staged game(s)`);
+      setClearOpen(false);
+      setSelectedIds(new Set());
+      await load(1, search, status, getAccessToken() ?? token);
+      setPage(1);
+    } catch (e) {
+      toast.error(errMessage(e, "Clear finished failed"));
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -557,6 +581,9 @@ export default function StagedGamesPage() {
                 <Trash2 className="size-4" /> Delete ({selectedCount})
               </Button>
             )}
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setClearOpen(true)}>
+              <Trash2 className="size-4" /> Clear finished
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -971,6 +998,29 @@ export default function StagedGamesPage() {
             </Button>
             <Button variant="destructive" onClick={handleDeleteSelected} disabled={deleting}>
               {deleting ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />} {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear finished confirmation */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent className="sm:max-w-[460px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="size-5 text-primary" /> Clear finished staged games?
+            </DialogTitle>
+            <DialogDescription>
+              Deletes every staged game whose football-data status is FINISHED, across all pages. Games already added
+              to the games table are never deleted. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearOpen(false)} disabled={clearing}>
+              Cancel
+            </Button>
+            <Button onClick={handleClearFinished} disabled={clearing} className="bg-primary">
+              {clearing ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />} {clearing ? "Clearing..." : "Clear finished"}
             </Button>
           </DialogFooter>
         </DialogContent>

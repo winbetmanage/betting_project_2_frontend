@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UserCircle, Wallet, ChevronDown } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/admin/ThemeToggle";
 import MobileMenu from "./MobileMenu";
 
 export default function UserNav() {
@@ -66,7 +67,7 @@ export default function UserNav() {
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-2.5">
         <nav className="flex items-center gap-6">
           <MobileMenu user={user} role={role} authed={authed} balance={balance} />
-          <Link href={role === "ADMIN" ? "/admin" : "/"} className="flex items-center gap-2">
+          <Link href={role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/"} className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/website_images/logoone.png"
@@ -93,6 +94,14 @@ export default function UserNav() {
                 Admin
               </Link>
             )}
+            {role === "AGENT" && (
+              <Link
+                href="/agent"
+                className={`rounded-md border border-amber-500/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/agent") ? "bg-amber-500 text-white" : "text-amber-400 hover:bg-amber-500/10"}`}
+              >
+                Agent
+              </Link>
+            )}
             {authed && (
               <Link
                 href="/profile"
@@ -104,6 +113,7 @@ export default function UserNav() {
           </div>
         </nav>
         <div className="flex items-center gap-2 sm:gap-4">
+          <ThemeToggle />
           <div className="hidden items-center gap-1 text-xs text-white/70 sm:flex">
             <span>Decimal Odds</span>
             <svg className="size-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import { api } from "@/lib/api";
-import { isAuthenticated, setSession, type AuthUser } from "@/lib/auth";
+import { isAuthenticated, setSession, getUser, getUserRole, type AuthUser } from "@/lib/auth";
 import { toast } from "sonner";
 
 function EmailIcon() {
@@ -32,7 +32,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated()) router.replace("/");
+    if (!isAuthenticated()) return;
+    const role = getUser()?.role ?? getUserRole();
+    router.replace(role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/");
   }, [router]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -45,10 +47,12 @@ export default function LoginPage() {
       }>("/auth/login", { email, password });
       setSession(res.data.accessToken, res.data.refreshToken, res.data.user);
       toast.success(`Welcome back, ${res.data.user.name ?? res.data.user.email}!`);
-      router.replace("/");
+      const role = res.data.user.role;
+      router.replace(role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/");
       router.refresh();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Login failed";
+      const raw = err instanceof Error ? err.message : "Login failed";
+      const msg = /inactive/i.test(raw) ? "Your account is inactive, contact an admin." : raw;
       toast.error(msg);
       setError(msg);
     } finally {
