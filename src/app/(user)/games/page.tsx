@@ -37,7 +37,7 @@ export default function GamesPage() {
         setGames([]);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, t]);
 
   return (
     <div className="space-y-6">

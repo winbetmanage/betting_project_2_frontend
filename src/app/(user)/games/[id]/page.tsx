@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { marketHelpText, type HelpSelection } from "@/lib/marketHelp";
@@ -18,7 +18,7 @@ import {
 import { TeamLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
 import { isBettingWindowOpen, timeRemaining } from "@/lib/timeRemaining";
-import { ArrowLeft, Clock, Calendar, Trophy, CheckCircle2, XCircle, Minus, ShieldAlert, Info } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, CheckCircle2, ShieldAlert, Info } from "lucide-react";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
 type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
@@ -60,7 +60,7 @@ export default function GameDetailPage() {
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : t("loadGameFailed")))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     const onPlaced = (e: Event) => setPlaced((e as CustomEvent).detail as string);

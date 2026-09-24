@@ -90,7 +90,7 @@ export default function MyBetsPage() {
       .then((r) => setBets(r.data ?? []))
       .catch((e) => toast.error(e instanceof ApiError ? e.message : t("loadFailed")))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, t]);
 
   const visible = bets
     .filter((b) => filter === "ALL" || b.status === filter)

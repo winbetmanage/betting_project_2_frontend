@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, RefreshCw, Calendar, Clock, CheckCircle2, XCircle, Minus } from "lucide-react";
+import { Trophy, RefreshCw, Calendar, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 
 type GameScoreRow = {

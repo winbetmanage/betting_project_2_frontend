@@ -95,6 +95,7 @@ export function LeagueLogo({
   if (!isEpl || error) return null;
   return (
     <div className={cn("relative shrink-0", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/assets/genenral_logos/premier-league.svg"
         alt={league ?? "Premier League"}
@@ -112,7 +113,6 @@ export function TeamLogo({
   name: string | null | undefined;
   className?: string;
 }) {
-  const normalized = normalizeName(name ?? "");
   // Prefer SVG (we ship .svg crests), fall back to PNG then to a letter badge
   const [fallback, setFallback] = useState<"svg" | "png" | "letter">("svg");
 

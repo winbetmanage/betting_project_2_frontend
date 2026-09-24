@@ -50,7 +50,6 @@ import {
   Calendar,
   Hash,
   RefreshCw,
-  Download,
   Trophy,
   Star,
   CheckCircle2,

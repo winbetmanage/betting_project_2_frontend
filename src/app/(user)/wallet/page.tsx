@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Upload, ArrowDownToLine, ArrowUpFromLine, History, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Wallet, Upload, ArrowDownToLine, ArrowUpFromLine, History, Loader2 } from "lucide-react";
 
 type TransferAccount = { id: string; accountName: string | null; accountNumber: string; bankName: string | null; status: boolean };
 type FundRequest = {
@@ -46,7 +46,6 @@ export default function UserWalletPage() {
   const [accounts, setAccounts] = useState<TransferAccount[]>([]);
   const [balance, setBalance] = useState<{ balance: number; heldBalance: number; available: number }>({ balance: 0, heldBalance: 0, available: 0 });
   const [requests, setRequests] = useState<FundRequest[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Deposit form
   const [deposit, setDeposit] = useState({ amount: "", transferAccountId: "", senderReference: "" });
@@ -69,7 +68,6 @@ export default function UserWalletPage() {
   useEffect(() => {
     const tok = token;
     if (!tok) return;
-    setLoading(true);
     Promise.all([
       api.get<{ data: TransferAccount[] }>("/transfer-accounts/active", tok).then((r) => r.data ?? []).catch(() => []),
       api.get<{ data: typeof balance }>("/funds/balance", tok).then((r) => r.data).catch(() => ({ balance: 0, heldBalance: 0, available: 0 })),
@@ -92,8 +90,7 @@ export default function UserWalletPage() {
             payoutBankName: w.payoutBankName || me!.payoutAccountType || "",
           }));
         }
-      })
-      .finally(() => setLoading(false));
+      });
   }, [token]);
 
   const handleDeposit = async (e: FormEvent) => {

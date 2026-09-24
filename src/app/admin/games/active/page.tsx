@@ -71,7 +71,7 @@ export default function ActiveGamesPage() {
     setToken(getAccessToken());
   }, []);
 
-  const load = async (p = page, s = search, l = limit) => {
+  const load = async (p = page, s = search) => {
     const t = getAccessToken() ?? token;
     setLoading(true);
     try {
@@ -95,18 +95,18 @@ export default function ActiveGamesPage() {
   };
 
   useEffect(() => {
-    load(1, search, limit);
+    load(1, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
-    const id = setTimeout(() => load(1, search, limit), 400);
+    const id = setTimeout(() => load(1, search), 400);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   useEffect(() => {
-    load(page, search, limit);
+    load(page, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
 
@@ -152,7 +152,7 @@ export default function ActiveGamesPage() {
     try {
       const res = await api.post<{ message: string }>("/games/refresh-times", {}, t);
       toast.success(res.message || "Kickoff times refreshed");
-      await load(1, search, limit);
+      await load(1, search);
       setPage(1);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Refresh failed");
@@ -203,7 +203,7 @@ export default function ActiveGamesPage() {
       toast.success(res.message ?? `Deleted ${res.data?.deleted ?? selectedIds.size} game(s)`);
       setConfirmDelete(false);
       setSelectedIds(new Set());
-      load(page, search, limit);
+      load(page, search);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete games");
     } finally {
@@ -220,7 +220,7 @@ export default function ActiveGamesPage() {
       await api.patch(`/games/${pendingToggle.id}`, { isPublished: newValue }, t);
       toast.success(`Game ${newValue ? "published" : "unpublished"} — ${pendingToggle.homeTeam} vs ${pendingToggle.awayTeam}`);
       setPendingToggle(null);
-      load(page, search, limit);
+      load(page, search);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update publish status");
     } finally {
@@ -637,7 +637,7 @@ export default function ActiveGamesPage() {
             </DialogTitle>
             <DialogDescription className="text-xs">Data from both external sources for this game. “Fetch all-market odds” pulls every market from The Odds API and saves it to this game&apos;s JSON file.</DialogDescription>
           </DialogHeader>
-          {apiGame && <GameApiInfo gameId={apiGame.id} showFetch onFetched={() => load(page, search, limit)} />}
+          {apiGame && <GameApiInfo gameId={apiGame.id} showFetch onFetched={() => load(page, search)} />}
         </DialogContent>
       </Dialog>
     </div>

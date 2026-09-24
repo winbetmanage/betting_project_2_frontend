@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { getUser, getUserRole, isAuthenticated, getAccessToken } from "@/lib/auth";
 import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";

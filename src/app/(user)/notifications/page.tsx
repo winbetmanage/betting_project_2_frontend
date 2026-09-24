@@ -40,7 +40,7 @@ export default function UserNotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [unreadOnly]);
+  }, [unreadOnly, t]);
 
   useEffect(() => {
     load();

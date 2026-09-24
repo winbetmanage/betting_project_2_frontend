@@ -72,7 +72,7 @@ export default function UserProfilePage() {
       })
       .catch(() => toast.error(t("loadFailed")))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     const tok = token;
@@ -83,7 +83,7 @@ export default function UserProfilePage() {
       .then((r) => setTransactions(r.data ?? []))
       .catch(() => setTransactions([]))
       .finally(() => setTxLoading(false));
-  }, [token]);
+  }, [token, t]);
 
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? "T";
   const payoutReady = Boolean(user?.payoutAccountType && user?.payoutAccountNumber && user?.payoutAccountUsername);
