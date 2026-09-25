@@ -18,8 +18,13 @@ export function marketHelpTemplateKey(sel: HelpSelection): string {
   const hay = `${sel.marketKey ?? ""} ${sel.marketName ?? ""} ${sel.marketType}`.toLowerCase();
   const pick = sel.selectionName.trim();
   const isDraw = /^(draw|x)$/i.test(pick);
+  // Corner / card markets count corners or bookings - never goals. Check first
+  // so they don't fall into the totals/spreads explanations below.
+  if (has(hay, "corner")) return "CORNERS";
+  if (has(hay, "card")) return "CARDS";
   if (has(hay, "draw_no_bet", "draw no bet")) return "DRAW_NO_BET";
   if (has(hay, "double_chance", "double chance")) return "DOUBLE_CHANCE";
+  if (has(hay, "h2h_lay", " lay ", "(lay)")) return "MATCH_WINNER_LAY";
   if (has(hay, "btts")) return has(hay, "h1", "first half") ? "BTTS_H1" : "BTTS";
   if (has(hay, "correct_score", "correct score")) return has(hay, "h1", "first half", "half time") ? "CORRECT_SCORE_H1" : "CORRECT_SCORE";
   if (has(hay, "halftime_fulltime", "half-time/full-time", "half time/full time", "ht/ft", "htft")) return "HTFT";

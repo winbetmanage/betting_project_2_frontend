@@ -365,6 +365,10 @@
       "title": "Match Winner — Draw",
       "body": "{home} ከ{away} ሙሉ ጊዜ በአቻ ውጤት ካለቀ ያሸንፋሉ። ማንኛውም ቡድን ካሸነፈ ይህ ምርጫ ይሸነፋል።"
     },
+    "MATCH_WINNER_LAY": {
+      "title": "Match Winner (Lay) - {pick}",
+      "body": "{pick} ላይ ሌይ ማለት {pick} እንዳያሸንፍ መወራረድ ነው። አቻ ከወጣ ወይም ከተሸነፈ ያሸንፋሉ። {pick} ካሸነፈ ይሸነፋሉ።"
+    },
     "DRAW_NO_BET": {
       "title": "Draw No Bet — {pick}",
       "body": "{pick} ሙሉ ጊዜ ካሸነፈ ያሸንፋሉ። ጨዋታው በአቻ ከተጠናቀቀ ገንዘብዎ ይመለስልዎታል (አሸንፈዋልም ተሸንፈዋልም)። ማንኛውም ሌላ ውጤት ያሸንፍዎታል።"
@@ -420,6 +424,14 @@
     "HTFT": {
       "title": "Half-Time / Full-Time — {pick}",
       "body": "የእረፍት ውጤት እና የሙሉ ጊዜ ውጤት ሁለቱም '{pick}' ጋር ከተዛመዱ ያሸንፋሉ። ሁለቱም ክፍሎች ትክክል መሆን አለባቸው።"
+    },
+    "CORNERS": {
+      "title": "Corners - {pick}",
+      "body": "ይህ ገበያ የሚቆጠረው በኮርነር ምቶች (corner kicks) ነው፣ በጎሎች አይደለም። '{pick}' የሚያሸንፈው ጠቅላላ ኮርነሮች {pick} {line} ከሆኑ ነው። የኮርነር ገበያዎች ከጨዋታው በኋላ በእኛ ቡድን በእጅ ይወሰናሉ።"
+    },
+    "CARDS": {
+      "title": "Cards - {pick}",
+      "body": "ይህ ገበያ የሚቆጠረው በካርዶች (bookings) ነው፣ በጎሎች አይደለም። '{pick}' የሚያሸንፈው የካርዶች ብዛት {pick} {line} ከሆነ ነው። የካርድ ገበያዎች ከጨዋታው በኋላ በእኛ ቡድን በእጅ ይወሰናሉ።"
     },
     "OUTRIGHT": {
       "title": "Outright — {pick}",

@@ -362,8 +362,12 @@
       "body": "You win if {pick} wins the match at full time (90 minutes plus stoppage time; extra time does not count unless stated). If the match ends in a draw, or any other team wins, this pick loses."
     },
     "MATCH_WINNER_DRAW": {
-      "title": "Match Winner — Draw",
+      "title": "Match Winner - Draw",
       "body": "You win if {home} vs {away} ends in a draw at full time (90 minutes plus stoppage time). If either team wins, this pick loses."
+    },
+    "MATCH_WINNER_LAY": {
+      "title": "Match Winner (Lay) - {pick}",
+      "body": "Laying {pick} means betting AGAINST them. You win if {pick} does NOT win at full time - a draw or a loss both win. If {pick} wins, this pick loses."
     },
     "DRAW_NO_BET": {
       "title": "Draw No Bet — {pick}",
@@ -420,6 +424,14 @@
     "HTFT": {
       "title": "Half-Time / Full-Time — {pick}",
       "body": "You win if the half-time result AND the full-time result both match '{pick}' (e.g. Home/Home means the home team leads at half time AND wins the match). Both parts must be right."
+    },
+    "CORNERS": {
+      "title": "Corners - {pick}",
+      "body": "This market is settled on CORNER KICKS, not goals. '{pick}' wins if the total corners are {pick} {line}. Corner markets are graded manually by our team after the match."
+    },
+    "CARDS": {
+      "title": "Cards - {pick}",
+      "body": "This market is settled on CARDS shown (bookings), not goals. '{pick}' wins if the cards total is {pick} {line}. Card markets are graded manually by our team after the match."
     },
     "OUTRIGHT": {
       "title": "Outright — {pick}",
