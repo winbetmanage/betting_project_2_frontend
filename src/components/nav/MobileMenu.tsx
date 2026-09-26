@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { api } from "@/lib/api";
-import { Menu, X, UserCircle, Wallet, Home, Gamepad2, ChevronRight, Trophy, Ticket, Briefcase } from "lucide-react";
+import { isSubAdminRole } from "@/lib/roles";
+import { Menu, X, UserCircle, Wallet, Home, Gamepad2, ChevronRight, Trophy, Ticket, Briefcase, ShieldCheck } from "lucide-react";
 
 type Sport = { id: string; name: string; gameType: string };
 type MobileMenuProps = {
@@ -206,6 +207,17 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
                     >
                       <Briefcase className="size-4" />
                       {t("agent")} Dashboard
+                    </Link>
+                  </motion.div>
+                )}
+                {isSubAdminRole(role) && (
+                  <motion.div variants={itemVariants}>
+                    <Link
+                      href="/subadmin"
+                      className="mt-1 flex items-center gap-3 rounded-lg border border-sky-500/40 px-3 py-2.5 text-sm font-medium text-sky-400 transition hover:bg-sky-500/10"
+                    >
+                      <ShieldCheck className="size-4" />
+                      Subadmin Dashboard
                     </Link>
                   </motion.div>
                 )}

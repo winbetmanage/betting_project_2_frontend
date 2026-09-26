@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
+import { displayRole } from "@/lib/roles";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Briefcase, Users, Mail, Calendar, Wallet, TrendingUp, Clock, Gift, Link2, Search, X, ChevronLeft, ChevronRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Briefcase, Users, Mail, Calendar, Wallet, TrendingUp, Clock, Gift, Link2, Search, ChevronLeft, ChevronRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
-const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT"] as const;
+const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT", "SUBADMIN"] as const;
 
 type AgentProfile = {
   id: string;
@@ -114,7 +114,7 @@ export default function AdminAgentDetailPage({ params }: { params: Promise<{ id:
   const pendingCode = ((codeDraft ?? agent?.second_referralCode ?? "") as string).trim();
 
   const openRoleChange = (role: string | null) => {
-    if (!agent || !role || role === agent.role) return;
+    if (!agent || !role || displayRole(role) === displayRole(agent.role)) return;
     const me = getUser();
     if (me?.id === agent.id && role !== "ADMIN") {
       toast.error("You cannot change your own account away from ADMIN — you would lose access to this page");
@@ -125,7 +125,7 @@ export default function AdminAgentDetailPage({ params }: { params: Promise<{ id:
   };
 
   const handleRoleChange = async () => {
-    if (!agent || !pendingRole || pendingRole === agent.role) return;
+    if (!agent || !pendingRole || displayRole(pendingRole) === displayRole(agent.role)) return;
     setChangingRole(true);
     try {
       const t = getAccessToken();
@@ -309,7 +309,7 @@ export default function AdminAgentDetailPage({ params }: { params: Promise<{ id:
         <CardContent className="flex flex-wrap items-end gap-3 p-4">
           <div className="space-y-1.5">
             <Label>Change account type</Label>
-            <Select value={agent.role} onValueChange={openRoleChange}>
+            <Select value={displayRole(agent.role)} onValueChange={openRoleChange}>
               <SelectTrigger className="w-56">
                 <SelectValue />
               </SelectTrigger>

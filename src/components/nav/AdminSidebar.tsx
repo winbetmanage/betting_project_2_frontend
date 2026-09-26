@@ -28,6 +28,7 @@ import {
   Banknote,
   Bell,
   UserX,
+  ScrollText,
 } from "lucide-react";
 
 import {
@@ -98,6 +99,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/fetch-games/champions-league")) return "champions-league";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
   if (pathname.startsWith("/admin/information/markets")) return "markets";
+  if (pathname.startsWith("/admin/activity")) return "activity";
   if (pathname.startsWith("/admin/settings/theme")) return "theme";
   if (pathname.startsWith("/admin/settings/general")) return "general";
   if (pathname.startsWith("/admin/settings/transfer-accounts")) return "transfer-accounts";
@@ -291,6 +293,25 @@ export function AdminSidebar() {
                 >
                   <LayoutGrid className="size-4" />
                   <span>Markets</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">ACTIVITY</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/activity" />}
+                  isActive={activeKey === "activity"}
+                  tooltip="Admin Activity"
+                  className={itemClass("activity")}
+                >
+                  <ScrollText className="size-4" />
+                  <span>Admin Activity</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

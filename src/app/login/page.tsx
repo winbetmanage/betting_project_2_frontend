@@ -6,6 +6,7 @@ import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import { api } from "@/lib/api";
 import { isAuthenticated, setSession, getUser, getUserRole, type AuthUser } from "@/lib/auth";
+import { homePathForRole } from "@/lib/roles";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -36,7 +37,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isAuthenticated()) return;
     const role = getUser()?.role ?? getUserRole();
-    router.replace(role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/");
+    router.replace(homePathForRole(role));
   }, [router]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -50,7 +51,7 @@ export default function LoginPage() {
       setSession(res.data.accessToken, res.data.refreshToken, res.data.user);
       toast.success(`Welcome back, ${res.data.user.name ?? res.data.user.email}!`);
       const role = res.data.user.role;
-      router.replace(role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/");
+      router.replace(homePathForRole(role));
       router.refresh();
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Login failed";

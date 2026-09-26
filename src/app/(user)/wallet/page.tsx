@@ -51,6 +51,7 @@ export default function UserWalletPage() {
   const [deposit, setDeposit] = useState({ amount: "", transferAccountId: "", senderReference: "" });
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [depositing, setDepositing] = useState(false);
+  const [tab, setTab] = useState("deposit");
 
   // Withdraw form
   const [withdraw, setWithdraw] = useState({ amount: "", payoutAccountName: "", payoutAccountNumber: "", payoutBankName: "" });
@@ -96,6 +97,7 @@ export default function UserWalletPage() {
   const handleDeposit = async (e: FormEvent) => {
     e.preventDefault();
     if (!deposit.transferAccountId) return toast.error(t("selectAccountErr"));
+    if (!deposit.senderReference.trim() && !proofFile) return toast.error(t("proofOrRefErr"));
     const tok = getAccessToken() ?? token;
     setDepositing(true);
     try {
@@ -118,6 +120,8 @@ export default function UserWalletPage() {
       setProofFile(null);
       const r = await api.get<{ data: FundRequest[] }>("/funds/requests", tok);
       setRequests(r.data ?? []);
+      // Take the user straight to their deposit history so they see the new request.
+      setTab("history");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("depositFailed"));
     } finally {
@@ -197,7 +201,7 @@ export default function UserWalletPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="deposit">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="deposit">{t("deposit")}</TabsTrigger>
           <TabsTrigger value="withdraw">{t("withdraw")}</TabsTrigger>
@@ -238,8 +242,9 @@ export default function UserWalletPage() {
                 onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
                 className="w-full text-sm text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-white"
               />
+              {proofFile && <p className="truncate text-xs text-white/60">{proofFile.name}</p>}
             </div>
-            <Button type="submit" disabled={depositing || !deposit.amount || !deposit.transferAccountId} className="bg-secondary">
+            <Button type="submit" disabled={depositing || !deposit.amount || !deposit.transferAccountId || (!deposit.senderReference.trim() && !proofFile)} className="bg-secondary">
               {depositing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} {t("submitDeposit")}
             </Button>
           </form>

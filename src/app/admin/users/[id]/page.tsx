@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { api, ApiError } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
+import { displayRole, isSubAdminRole } from "@/lib/roles";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,7 @@ import {
   CircleCheck,
 } from "lucide-react";
 
-const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT"] as const;
+const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT", "SUBADMIN"] as const;
 
 const editSchema = z.object({
   name: z.string().max(100).optional().or(z.literal("")),
@@ -138,7 +139,9 @@ const roleBadgeClass = (role: string) =>
       ? "bg-secondary text-white"
       : role === "AGENT"
         ? "bg-amber-500 text-white"
-        : "bg-muted text-foreground border-border";
+        : isSubAdminRole(role)
+          ? "bg-sky-500 text-white"
+          : "bg-muted text-foreground border-border";
 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -250,7 +253,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   };
 
   const openRoleChange = (role: string | null) => {
-    if (!user || !role || role === user.role) return;
+    if (!user || !role || displayRole(role) === displayRole(user.role)) return;
     const me = getUser();
     if (me?.id === user.id && role !== "ADMIN") {
       toast.error("You cannot change your own account away from ADMIN — you would lose access to this page");
@@ -572,8 +575,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </CardHeader>
           <CardContent className="space-y-3 p-4">
             <div className="space-y-1.5">
-              <Label>Current type: {user.role}</Label>
-              <Select value={user.role} onValueChange={openRoleChange}>
+              <Label>Current type: {displayRole(user.role)}</Label>
+              <Select value={displayRole(user.role)} onValueChange={openRoleChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -586,8 +589,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                USER = player, AGENT = referral agent, ODDS_MANAGER = trading team, ADMIN = full access. Switching asks
-                for confirmation first.
+                USER = player, AGENT = referral agent, ODDS_MANAGER = trading team, SUBADMIN = money management,
+                ADMIN = full access. Switching asks for confirmation first.
               </p>
             </div>
             <Separator />

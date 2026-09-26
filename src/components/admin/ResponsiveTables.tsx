@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 function labelTables(scope: ParentNode) {
-  scope.querySelectorAll("table.admin-cards").forEach((t) => {
+  scope.querySelectorAll("table.admin-cards, table.stripe-table").forEach((t) => {
     const heads = Array.from(t.querySelectorAll(":scope > thead th")).map((th) => (th.textContent ?? "").trim());
     t.querySelectorAll(":scope > tbody > tr").forEach((tr) => {
       Array.from(tr.children).forEach((td, i) => {
@@ -21,9 +21,9 @@ function labelTables(scope: ParentNode) {
 }
 
 /**
- * Mount once in the admin layout: keeps every table.admin-cards labelled so the
- * mobile CSS (globals.css) can render rows as cards with column captions.
- * Desktop rendering is unaffected (labels are inert without the media query).
+ * Mount once in a console layout: keeps every table.admin-cards / table.stripe-table
+ * labelled so the mobile CSS (globals.css) can render rows as cards with column
+ * captions. Desktop rendering is unaffected (labels are inert without the media query).
  */
 export function ResponsiveTables({ children }: { children: React.ReactNode }) {
   useEffect(() => {

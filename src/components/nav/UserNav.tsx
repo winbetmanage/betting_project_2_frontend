@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { getUser, getUserRole, isAuthenticated, getAccessToken } from "@/lib/auth";
+import { homePathForRole, isSubAdminRole } from "@/lib/roles";
 import { api } from "@/lib/api";
 import {
   DropdownMenu,
@@ -70,7 +71,7 @@ export default function UserNav() {
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-2.5">
         <nav className="flex items-center gap-6">
           <MobileMenu user={user} role={role} authed={authed} balance={balance} />
-          <Link href={role === "ADMIN" ? "/admin" : role === "AGENT" ? "/agent" : "/"} className="flex items-center gap-2">
+          <Link href={homePathForRole(role)} className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/website_images/logoone.png"
@@ -103,6 +104,14 @@ export default function UserNav() {
                 className={`rounded-md border border-amber-500/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/agent") ? "bg-amber-500 text-white" : "text-amber-400 hover:bg-amber-500/10"}`}
               >
                 {t("agent")}
+              </Link>
+            )}
+            {isSubAdminRole(role) && (
+              <Link
+                href="/subadmin"
+                className={`rounded-md border border-sky-500/40 px-2.5 py-1 text-xs font-medium ${pathname.startsWith("/subadmin") ? "bg-sky-500 text-white" : "text-sky-400 hover:bg-sky-500/10"}`}
+              >
+                Subadmin
               </Link>
             )}
             {authed && (

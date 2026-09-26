@@ -12,6 +12,7 @@ import {
   type Role,
 } from "@/lib/auth";
 import { tryRefreshSession, handleRefreshFailure } from "@/lib/sessionRefresh";
+import { roleMatches } from "@/lib/roles";
 
 export type { Role };
 
@@ -62,7 +63,7 @@ export default function RoleGate({
       if (cancelled) return;
       const user = getUser();
       const role = user?.role ?? getUserRole();
-      if (role && roles.includes(role)) {
+      if (role && roleMatches(role, roles)) {
         setAllowed(true);
       } else if (!role) {
         // Token invalid after refresh - force login

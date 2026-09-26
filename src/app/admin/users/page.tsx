@@ -24,8 +24,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Users, ShieldCheck, Crown, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
+import { isSubAdminRole } from "@/lib/roles";
 
-const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT"] as const;
+const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT", "SUBADMIN"] as const;
 
 const editSchema = z.object({
   name: z.string().max(100).optional().or(z.literal("")),
@@ -101,7 +102,7 @@ export default function AdminUsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ODDS_MANAGER");
+  const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ODDS_MANAGER" || isSubAdminRole(u.role));
   const regulars = users.filter((u) => u.role === "USER");
 
   const roleBadgeClass = (role: string) =>
@@ -111,7 +112,9 @@ export default function AdminUsersPage() {
         ? "bg-secondary text-white"
         : role === "AGENT"
           ? "bg-amber-500 text-white"
-          : "bg-muted text-foreground border-border";
+          : isSubAdminRole(role)
+            ? "bg-sky-500 text-white"
+            : "bg-muted text-foreground border-border";
 
   const avatarClass = (role: string) =>
     role === "ADMIN"
@@ -120,7 +123,9 @@ export default function AdminUsersPage() {
         ? "bg-secondary"
         : role === "AGENT"
           ? "bg-amber-500"
-          : "bg-muted text-foreground";
+          : isSubAdminRole(role)
+            ? "bg-sky-500"
+            : "bg-muted text-foreground";
 
   const openDetails = (u: UserRow) => {
     router.push(`/admin/users/${u.id}`);
@@ -393,6 +398,7 @@ export default function AdminUsersPage() {
                   <SelectItem value="ADMIN">ADMIN</SelectItem>
                   <SelectItem value="ODDS_MANAGER">ODDS_MANAGER</SelectItem>
                   <SelectItem value="AGENT">AGENT</SelectItem>
+                  <SelectItem value="SUBADMIN">SUBADMIN</SelectItem>
                 </SelectContent>
               </Select>
             </div>

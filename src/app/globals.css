@@ -206,6 +206,46 @@
   }
 }
 
+/* Striped, never-scrolling data tables (sub-admin console).
+   1. `.stripe-table` paints alternating rows with two very close background
+      tones so long tables stay readable without strong banding.
+   2. Cells are allowed to wrap and break anywhere, and columns are fixed
+      width, so the table always fits its container instead of forcing the
+      page to scroll sideways. On phones the `admin-cards` rules turn each row
+      into a card, so the scroll wrapper inside <Table> is neutralised. */
+@layer components {
+  .stripe-table {
+    table-layout: fixed;
+  }
+  .stripe-table > thead > tr > th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .stripe-table > tbody > tr > td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .stripe-table > tbody > tr:nth-child(odd) {
+    background-color: color-mix(in oklab, var(--card) 88%, var(--muted));
+  }
+  .stripe-table > tbody > tr:nth-child(even) {
+    background-color: color-mix(in oklab, var(--muted) 34%, transparent);
+  }
+  .stripe-table > tbody > tr:hover {
+    background-color: color-mix(in oklab, var(--muted) 62%, transparent);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .stripe-table[data-slot="table"] {
+    table-layout: auto;
+  }
+  .subadmin-shell [data-slot="table-container"] {
+    overflow-x: hidden;
+  }
+}
+
 /* Bet receipt printing - single A4 flow: two columns split by a vertical rule.
    Only applies while a ticket dialog is open. The dialog popup is expanded
    to the full page, chrome (header/footer/overlay/close) is removed, and the

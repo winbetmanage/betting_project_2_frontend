@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser, getUserRole, isAuthenticated, getAccessToken } from "@/lib/auth";
+import { homePathForRole } from "@/lib/roles";
 import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
@@ -891,14 +892,11 @@ export default function HomeContent() {
 
   useEffect(() => {
     if (!mounted) return;
-    // Each role lands on its own dashboard: admin -> /admin, agent -> /agent
-    // (the agent dashboard is the agent's main home page). Normal users stay here.
+    // Each role lands on its own dashboard: admin -> /admin, agent -> /agent,
+    // subadmin -> /subadmin. Normal users stay here.
     if (!authed) return;
-    if (role === "ADMIN") {
-      router.replace("/admin");
-    } else if (role === "AGENT") {
-      router.replace("/agent");
-    }
+    const target = homePathForRole(role);
+    if (target !== "/") router.replace(target);
   }, [mounted, authed, role, router]);
 
   if (!mounted) {
@@ -910,7 +908,7 @@ export default function HomeContent() {
     );
   }
 
-  if (authed && (role === "ADMIN" || role === "AGENT")) {
+  if (authed && homePathForRole(role) !== "/") {
     return (
       <div className="grid min-h-[60vh] place-items-center bg-[#eef2f7]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
