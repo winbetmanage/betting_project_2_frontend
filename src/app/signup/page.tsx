@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
@@ -89,9 +89,14 @@ export default function SignupPage() {
     };
   }, [refCode]);
 
-  // Manual agent-code box: live-lookup an AGENT's second code (debounced)
+  // Manual agent-code box: live-lookup an AGENT's second code (debounced).
+  // A sequence number drops stale responses: if the user keeps typing while a
+  // lookup for an older prefix is still in flight, the older answer is ignored
+  // so it can never overwrite the result for what is actually typed.
+  const agentLookupSeq = useRef(0);
   useEffect(() => {
     const typed = agentCode.trim();
+    const seq = ++agentLookupSeq.current;
     if (!typed) {
       setAgentName(null);
       setAgentChecked(false);
@@ -99,26 +104,21 @@ export default function SignupPage() {
     }
     setAgentChecked(false);
     const id = setTimeout(() => {
-      let cancelled = false;
       api
         .get<{ data: { found: boolean; name?: string; codeType?: string } }>(
           `/auth/referral?ref=${encodeURIComponent(typed)}`
         )
         .then((r) => {
-          if (cancelled) return;
+          if (seq !== agentLookupSeq.current) return;
           const ok = r.data?.found && r.data?.codeType === "SECONDARY";
           setAgentName(ok ? r.data.name ?? "A friend" : null);
           setAgentChecked(true);
         })
         .catch(() => {
-          if (!cancelled) {
-            setAgentName(null);
-            setAgentChecked(true);
-          }
+          if (seq !== agentLookupSeq.current) return;
+          setAgentName(null);
+          setAgentChecked(true);
         });
-      return () => {
-        cancelled = true;
-      };
     }, 400);
     return () => clearTimeout(id);
   }, [agentCode]);
