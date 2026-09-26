@@ -131,6 +131,7 @@
     "betPlacedId": "ውርርድ ተቀምጧል! መታወቂያ: {id}",
     "couldNotPlace": "ውርርድ ማስገባት አልተቻለም",
     "maxStake": "ከፍተኛ የውርርድ መጠን ETB {amount} ነው",
+    "minStake": "ዝቅተኛ የቲኬት መጠን ETB {amount} ነው",
     "maxPayout": "ከፍተኛ የቲኬት ክፍያ ETB {amount} ነው",
     "removeSelection": "ምርጫን አስወግድ",
     "clearSlip": "ወረቀቱን አጽዳ",

@@ -27,15 +27,18 @@ export function BetSlipPanel() {
   const [placedData, setPlacedData] = useState<ReceiptData | null>(null);
   const [maxStake, setMaxStake] = useState<number | null>(null);
   const [maxPayout, setMaxPayout] = useState<number | null>(null);
+  const [minStake, setMinStake] = useState(10);
 
   useEffect(() => {
     const tok = getAccessToken();
     if (!tok) return;
     api
-      .get<{ data: { maxStake?: number | null; maxPayout?: number | null } }>("/settings/public", tok)
+      .get<{ data: { maxStake?: number | null; maxPayout?: number | null; minStake?: number | null } }>("/settings/public", tok)
       .then((r) => {
         setMaxStake(r.data?.maxStake ?? null);
         setMaxPayout(r.data?.maxPayout ?? null);
+        const m = Number(r.data?.minStake);
+        if (Number.isFinite(m) && m >= 1) setMinStake(m);
       })
       .catch(() => {
         setMaxStake(null);
@@ -44,6 +47,10 @@ export function BetSlipPanel() {
   }, []);
 
   const openConfirm = () => {
+    if (Number(slip.stake || 0) < minStake) {
+      toast.error(t("minStake", { amount: minStake.toLocaleString("en-US") }));
+      return;
+    }
     if (maxStake != null && Number(slip.stake || 0) > maxStake) {
       toast.error(t("maxStake", { amount: maxStake.toLocaleString("en-US") }));
       return;
@@ -118,7 +125,7 @@ export function BetSlipPanel() {
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <label className="text-[10px] font-bold tracking-widest text-white/50">
-                    {t("stake")} (ETB){maxStake != null && ` · MAX ${maxStake.toLocaleString("en-US")}`}
+                    {t("stake")} (ETB){` · MIN ${minStake.toLocaleString("en-US")}`}{maxStake != null && ` · MAX ${maxStake.toLocaleString("en-US")}`}
                   </label>
                   <input
                     type="number"

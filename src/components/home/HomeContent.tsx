@@ -191,6 +191,10 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       toast.error(t("enterStake"));
       return;
     }
+    if (Number(slip.stake) < slip.minStake) {
+      toast.error(t("minStake", { amount: slip.minStake.toLocaleString("en-US") }));
+      return;
+    }
     setNotice(null);
     setConfirmReceipt(buildReceipt(slip.legs, Number(slip.stake), { existingOddsTotal: slip.totalOdds }));
   };
@@ -771,7 +775,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             </div>
             <div className="mt-3 space-y-2">
               <div>
-                <label className="text-[10px] font-bold tracking-widest text-[#64748b]">{t("stake")}</label>
+                <label className="text-[10px] font-bold tracking-widest text-[#64748b]">{t("stake")} · MIN {slip.minStake.toLocaleString("en-US")}</label>
                 <div className="mt-1 flex items-center gap-2 rounded-md border border-[#e2e8f0] bg-white px-2 py-1.5">
                   <span className="text-xs text-[#64748b]">ETB</span>
                   <input

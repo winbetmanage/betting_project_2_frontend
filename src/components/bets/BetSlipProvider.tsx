@@ -33,6 +33,8 @@ type SlipContextValue = {
   totalOdds: number;
   potentialPayout: number;
   placing: boolean;
+  /** Floor for one ticket's stake, from admin settings (default 10). */
+  minStake: number;
   /** Places the whole slip as one ticket (server derives SINGLE vs MULTIPLE). */
   place: () => Promise<{ betId?: string; error?: string }>;
 };
@@ -49,6 +51,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const t = useTranslations("home");
   const [legs, setLegs] = useState<SlipLeg[]>([]);
   const [maxLegs, setMaxLegs] = useState(30);
+  const [minStake, setMinStake] = useState(10);
   const [stake, setStake] = useState("10");
   const [placing, setPlacing] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -56,10 +59,12 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getAccessToken();
     api
-      .get<{ data: { maxLegs?: number | null } }>("/settings/public", token ?? undefined)
+      .get<{ data: { maxLegs?: number | null; minStake?: number | null } }>("/settings/public", token ?? undefined)
       .then((r) => {
         const v = Number(r.data?.maxLegs);
         if (Number.isFinite(v) && v >= 1) setMaxLegs(Math.floor(v));
+        const m = Number(r.data?.minStake);
+        if (Number.isFinite(m) && m >= 1) setMinStake(m);
       })
       .catch(() => {});
   }, []);
@@ -136,6 +141,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     }
     if (legs.length === 0) return { error: t("addSelectionFirst") };
     if (Number(stake) <= 0) return { error: t("enterStakePositive") };
+    if (Number(stake) < minStake) return { error: t("minStake", { amount: minStake.toLocaleString("en-US") }) };
     setPlacing(true);
     try {
       const res = await api.post<{ data: { id: string } }>(
@@ -150,11 +156,11 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setPlacing(false);
     }
-  }, [legs, stake, clear, t]);
+  }, [legs, stake, minStake, clear, t]);
 
   const value = useMemo<SlipContextValue>(
-    () => ({ legs, stake, setStake, has, add, remove, toggle, clear, count: legs.length, totalOdds, potentialPayout, placing, place }),
-    [legs, stake, has, add, remove, toggle, clear, totalOdds, potentialPayout, placing, place]
+    () => ({ legs, stake, setStake, has, add, remove, toggle, clear, count: legs.length, totalOdds, potentialPayout, placing, minStake, place }),
+    [legs, stake, has, add, remove, toggle, clear, totalOdds, potentialPayout, placing, minStake, place]
   );
 
   return <SlipContext.Provider value={value}>{children}</SlipContext.Provider>;
