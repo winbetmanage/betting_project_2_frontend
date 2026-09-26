@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Users, ShieldCheck, Crown, Briefcase, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
+import { Users, ShieldCheck, Crown, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
 
 const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT"] as const;
 
@@ -47,7 +47,14 @@ type UserRow = {
   createdAt: string;
   updatedAt: string;
   lastLoginAt: string | null;
+  referredAs: { referrer: { id: string; name: string | null } } | null;
   _count: { bets: number; transactions: number };
+};
+
+const agentFirstName = (u: UserRow): string => {
+  const name = u.referredAs?.referrer.name?.trim() ?? "";
+  if (!name) return "—";
+  return name.split(/\s+/)[0];
 };
 
 export default function AdminUsersPage() {
@@ -95,7 +102,6 @@ export default function AdminUsersPage() {
   }, [search]);
 
   const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ODDS_MANAGER");
-  const agents = users.filter((u) => u.role === "AGENT");
   const regulars = users.filter((u) => u.role === "USER");
 
   const roleBadgeClass = (role: string) =>
@@ -190,7 +196,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  const UserTable = ({ data, title, subtitle, icon: Icon }: { data: UserRow[]; title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }) => (
+  const UserTable = ({ data, title, subtitle, icon: Icon, showAgent = false }: { data: UserRow[]; title: string; subtitle: string; icon: React.ComponentType<{ className?: string }>; showAgent?: boolean }) => (
     <Card className="border-border bg-card shadow-sm">
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -215,7 +221,7 @@ export default function AdminUsersPage() {
               <TableHeader className="bg-primary">
                 <TableRow className="hover:bg-primary border-primary">
                   <TableHead className="text-white text-xs tracking-widest">USER</TableHead>
-                  <TableHead className="text-white text-xs tracking-widest">ROLE</TableHead>
+                  <TableHead className="text-white text-xs tracking-widest">{showAgent ? "AGENT" : "ROLE"}</TableHead>
                   <TableHead className="text-white text-xs tracking-widest">BALANCE</TableHead>
                   <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
                   <TableHead className="text-white text-xs tracking-widest">JOINED</TableHead>
@@ -244,9 +250,13 @@ export default function AdminUsersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={roleBadgeClass(u.role)} variant="outline">
-                        {u.role}
-                      </Badge>
+                      {showAgent ? (
+                        <span className="text-sm font-medium">{agentFirstName(u)}</span>
+                      ) : (
+                        <Badge className={roleBadgeClass(u.role)} variant="outline">
+                          {u.role}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className="flex items-center gap-1 font-mono text-sm">
@@ -257,10 +267,19 @@ export default function AdminUsersPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Badge className={u.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive border-destructive/20"}>
-                        {u.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                      {u.emailVerified && <Badge variant="outline" className="ml-1 text-[10px] border-secondary/20 text-secondary">Verified</Badge>}
+                      {showAgent ? (
+                        <span className="flex items-center gap-1.5 text-xs font-medium">
+                          <span className={`size-2.5 rounded-full ${u.isActive ? "bg-green-500" : "bg-red-500"}`} />
+                          {u.isActive ? "Active" : "Inactive"}
+                        </span>
+                      ) : (
+                        <>
+                          <Badge className={u.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive border-destructive/20"}>
+                            {u.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                          {u.emailVerified && <Badge variant="outline" className="ml-1 text-[10px] border-secondary/20 text-secondary">Verified</Badge>}
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="text-xs">{new Date(u.createdAt).toLocaleDateString()}</div>
@@ -320,7 +339,7 @@ export default function AdminUsersPage() {
             <Users className="size-3.5" /> Manage Bettors
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">All registered accounts — admins on top, agents in the middle, players below. Details, edit & delete.</p>
+          <p className="text-sm text-muted-foreground">All registered accounts — admins on top, players below. Agents live under their own menu. Details, edit & delete.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-1.5 shadow-sm">
@@ -346,8 +365,7 @@ export default function AdminUsersPage() {
       </div>
 
       <UserTable data={admins} title="Admins & Betting Managers" subtitle="Privileged accounts — shown on top as requested" icon={ShieldCheck} />
-      <UserTable data={agents} title="Agents" subtitle="Agent accounts — between admins and players" icon={Briefcase} />
-      <UserTable data={regulars} title="Players (Users)" subtitle="Regular bettors — full edit & delete controls" icon={UserIcon} />
+      <UserTable data={regulars} title="Players (Users)" subtitle="Regular bettors — agent shown per player, full edit & delete controls" icon={UserIcon} showAgent />
 
       {/* Edit */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

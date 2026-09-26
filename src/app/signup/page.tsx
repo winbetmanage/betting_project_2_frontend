@@ -43,42 +43,108 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
   const [refName, setRefName] = useState<string | null>(null);
+  const [refIsAgent, setRefIsAgent] = useState(false);
+  const [agentCode, setAgentCode] = useState("");
+  const [agentName, setAgentName] = useState<string | null>(null);
+  const [agentChecked, setAgentChecked] = useState(false);
+  const [requireAgent, setRequireAgent] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated()) router.replace("/");
     // Capture referral code from the link (/signup?ref=<code>)
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref && ref.trim()) setRefCode(ref.trim());
+    api
+      .get<{ data: { requireAgent: boolean } }>("/settings/signup-info")
+      .then((r) => setRequireAgent(!!r.data?.requireAgent))
+      .catch(() => setRequireAgent(false));
   }, [router]);
 
   useEffect(() => {
     if (!refCode) {
       setRefName(null);
+      setRefIsAgent(false);
       return;
     }
     let cancelled = false;
     api
-      .get<{ data: { found: boolean; name?: string } }>(`/auth/referral?ref=${encodeURIComponent(refCode)}`)
+      .get<{ data: { found: boolean; name?: string; isAgent?: boolean; secondCode?: string | null } }>(`/auth/referral?ref=${encodeURIComponent(refCode)}`)
       .then((r) => {
         if (cancelled) return;
         setRefName(r.data?.found ? r.data.name ?? "A friend" : null);
+        setRefIsAgent(!!r.data?.found && !!r.data?.isAgent);
+        // Agent link detected: auto-fill their second code (still editable)
+        if (r.data?.found && r.data?.isAgent && r.data?.secondCode) {
+          setAgentCode((prev) => prev || r.data.secondCode || prev);
+        }
       })
       .catch(() => {
-        if (!cancelled) setRefName(null);
+        if (!cancelled) {
+          setRefName(null);
+          setRefIsAgent(false);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [refCode]);
 
+  // Manual agent-code box: live-lookup an AGENT's second code (debounced)
+  useEffect(() => {
+    const typed = agentCode.trim();
+    if (!typed) {
+      setAgentName(null);
+      setAgentChecked(false);
+      return;
+    }
+    setAgentChecked(false);
+    const id = setTimeout(() => {
+      let cancelled = false;
+      api
+        .get<{ data: { found: boolean; name?: string; codeType?: string } }>(
+          `/auth/referral?ref=${encodeURIComponent(typed)}`
+        )
+        .then((r) => {
+          if (cancelled) return;
+          const ok = r.data?.found && r.data?.codeType === "SECONDARY";
+          setAgentName(ok ? r.data.name ?? "A friend" : null);
+          setAgentChecked(true);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setAgentName(null);
+            setAgentChecked(true);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, 400);
+    return () => clearTimeout(id);
+  }, [agentCode]);
+
+  const agentDetectedName = agentName ?? (refIsAgent ? refName : null);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (requireAgent && !agentDetectedName) {
+      const msg = t("requireAgentError");
+      toast.error(msg);
+      setError(msg);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.post<{
         data: { accessToken: string; refreshToken: string; user: AuthUser };
-      }>("/auth/register", { name, email, password, ...(refCode ? { referralCode: refCode } : {}) });
+      }>("/auth/register", {
+        name,
+        email,
+        password,
+        ...(refCode ? { referralCode: refCode } : {}),
+        ...(agentCode.trim() ? { secondReferralCode: agentCode.trim() } : {}),
+      });
       setSession(res.data.accessToken, res.data.refreshToken, res.data.user);
       toast.success(`Welcome, ${res.data.user.name ?? res.data.user.email}! Account created.`);
       router.replace("/");
@@ -102,6 +168,17 @@ export default function SignupPage() {
         onSubmit={onSubmit}
         className="space-y-5 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8"
       >
+        {agentDetectedName && (
+          <div className="rounded-xl border border-secondary/40 bg-secondary/10 px-4 py-3 text-center">
+            <div className="text-[11px] font-semibold tracking-widest text-secondary">{t("agentBannerKicker")}</div>
+            <div className="mt-0.5 text-xl font-black text-white">{agentDetectedName}</div>
+          </div>
+        )}
+        {requireAgent && !agentDetectedName && (
+          <p className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
+            {t("requireAgentNotice")}
+          </p>
+        )}
         {error && (
           <p className="rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-200">
             {error}
@@ -180,6 +257,30 @@ export default function SignupPage() {
             )}
           </p>
         )}
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-white/80" htmlFor="agent-code">
+            {t("agentCodeLabel")}
+          </label>
+          <input
+            id="agent-code"
+            type="text"
+            value={agentCode}
+            onChange={(e) => setAgentCode(e.target.value)}
+            placeholder={t("agentCodePh")}
+            autoComplete="off"
+            className="w-full rounded-xl border border-white/10 bg-white/5 py-3 px-4 text-sm text-white placeholder-white/35 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+          />
+          {agentCode.trim() && agentChecked && (
+            <p className={`rounded-lg border px-3.5 py-2.5 text-xs ${agentName ? "border-secondary/30 bg-secondary/10 text-secondary" : "border-red-400/30 bg-red-500/10 text-red-200"}`}>
+              {agentName ? (
+                <>{t("agentMatch")} <span className="font-bold">{agentName}</span>.</>
+              ) : (
+                <>{t("agentNoMatch")}</>
+              )}
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"

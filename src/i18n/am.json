@@ -57,7 +57,14 @@
     "passwordMismatch": "የይለፍ ቃሎች አይዛመዱም",
     "referredBy": "በዚህ ተጋብዘዋል",
     "badRefCode": "አልታወቀም — አሁንም መመዝገብ ይችላሉ።",
-    "referralCode": "የሪፈራል ኮድ"
+    "referralCode": "የሪፈራል ኮድ",
+    "agentCodeLabel": "የኤጀንት ኮድ (አማራጭ)",
+    "agentCodePh": "የኤጀንትዎን ኮድ ያስገቡ፣ ካለዎት",
+    "agentMatch": "በኤጀንት ስር እየተመዘገቡ ነው",
+    "agentNoMatch": "በዚህ ኮድ ምንም ኤጀንት አልተገኘም — አሁንም መመዝገብ ይችላሉ።",
+    "agentBannerKicker": "በኤጀንት ስር በመመዝገብ ላይ",
+    "requireAgentNotice": "በዚህ መድረክ መመዝገብ ኤጀንት ይፈልጋል — የኤጀንትዎን ኮድ ከዚህ በታች ያስገቡ።",
+    "requireAgentError": "መመዝገብ ትክክለኛ የኤጀንት ሪፈራል ኮድ ይፈልጋል።"
   },
   "home": {
     "liveOnly": "በቀጥታ ብቻ",
@@ -124,6 +131,7 @@
     "betPlacedId": "ውርርድ ተቀምጧል! መታወቂያ: {id}",
     "couldNotPlace": "ውርርድ ማስገባት አልተቻለም",
     "maxStake": "ከፍተኛ የውርርድ መጠን ETB {amount} ነው",
+    "maxPayout": "ከፍተኛ የቲኬት ክፍያ ETB {amount} ነው",
     "removeSelection": "ምርጫን አስወግድ",
     "clearSlip": "ወረቀቱን አጽዳ",
     "reviewBet": "{kind} ይገምግሙ",

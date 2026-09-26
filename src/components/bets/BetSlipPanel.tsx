@@ -26,19 +26,30 @@ export function BetSlipPanel() {
   const [confirmData, setConfirmData] = useState<ReceiptData | null>(null);
   const [placedData, setPlacedData] = useState<ReceiptData | null>(null);
   const [maxStake, setMaxStake] = useState<number | null>(null);
+  const [maxPayout, setMaxPayout] = useState<number | null>(null);
 
   useEffect(() => {
     const tok = getAccessToken();
     if (!tok) return;
     api
-      .get<{ data: { maxStake: number | null } }>("/settings/max-stake", tok)
-      .then((r) => setMaxStake(r.data?.maxStake ?? null))
-      .catch(() => setMaxStake(null));
+      .get<{ data: { maxStake?: number | null; maxPayout?: number | null } }>("/settings/public", tok)
+      .then((r) => {
+        setMaxStake(r.data?.maxStake ?? null);
+        setMaxPayout(r.data?.maxPayout ?? null);
+      })
+      .catch(() => {
+        setMaxStake(null);
+        setMaxPayout(null);
+      });
   }, []);
 
   const openConfirm = () => {
     if (maxStake != null && Number(slip.stake || 0) > maxStake) {
       toast.error(t("maxStake", { amount: maxStake.toLocaleString("en-US") }));
+      return;
+    }
+    if (maxPayout != null && slip.potentialPayout > maxPayout) {
+      toast.error(t("maxPayout", { amount: maxPayout.toLocaleString("en-US") }));
       return;
     }
     setConfirmData(buildReceipt(slip.legs, Number(slip.stake || 0), { existingOddsTotal: slip.totalOdds }));

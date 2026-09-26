@@ -40,6 +40,7 @@ type AgentProfile = {
   isActive: boolean;
   emailVerified: boolean;
   referralCode: string | null;
+  second_referralCode: string | null;
   createdAt: string;
   lastLoginAt: string | null;
 };
@@ -74,6 +75,7 @@ export default function AgentDashboardPage() {
   const [refPage, setRefPage] = useState(1);
   const REF_PAGE_SIZE = 8;
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [referralLink, setReferralLink] = useState("");
 
   useEffect(() => {
@@ -163,6 +165,23 @@ export default function AgentDashboardPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyCode = async () => {
+    if (!profile?.second_referralCode) return;
+    try {
+      await navigator.clipboard.writeText(profile.second_referralCode);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = profile.second_referralCode;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopiedCode(true);
+    toast.success("Agent code copied");
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   if (loading) {
     return (
       <div className="grid place-items-center py-20">
@@ -210,7 +229,73 @@ export default function AgentDashboardPage() {
         ))}
       </div>
 
-      {/* Activity — latest 10 on top */}
+      {/* Referral section */}
+      <div id="referral-link" className="scroll-mt-20">
+        <Card className="border-border bg-card shadow-sm h-full">
+          <CardHeader className="border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Link2 className="size-5 text-primary" /> My Referral Link
+            </CardTitle>
+            <CardDescription>Send this to people — anyone who registers with it is counted as your referral</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4">
+            <div className="space-y-1.5">
+              <Label>Referral link</Label>
+              <div className="flex gap-2">
+                <Input value={referralLink || "No referral code on this account"} readOnly className="font-mono text-xs" />
+                <Button onClick={copyLink} disabled={!referralLink} className="shrink-0 bg-primary">
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-center">
+              <div className="text-[11px] font-semibold tracking-widest text-amber-600 dark:text-amber-400">
+                MY AGENT CODE — users type this on signup
+              </div>
+              <div className="mt-1 font-mono text-3xl font-black tracking-wider">
+                {profile?.second_referralCode ?? "—"}
+              </div>
+              <Button
+                onClick={copyCode}
+                disabled={!profile?.second_referralCode}
+                size="sm"
+                className="mt-2 bg-amber-500 hover:bg-amber-500/90 text-white"
+              >
+                {copiedCode ? <Check className="size-4" /> : <Copy className="size-4" />}
+                {copiedCode ? "Copied" : "Copy code"}
+              </Button>
+            </div>
+            <div className="rounded-xl border border-border p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <UserPlus className="size-4 text-primary" /> Recent signups
+              </div>
+              {recentSignups.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No one has registered with your link yet.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {recentSignups.map((r) => (
+                    <div key={r.id} className="flex items-center gap-2 py-1.5 text-xs">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-bold">
+                        {(r.referee.name ?? r.referee.email)[0]?.toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{r.referee.name || r.referee.email}</span>
+                      <span className="shrink-0 text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
+                      {r.status === "REWARDED" ? (
+                        <Badge className="bg-secondary text-white text-[10px]">Rewarded</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-500/30 text-amber-600 text-[10px]">Pending</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity — latest 10 */}
       <div id="activity" className="scroll-mt-20">
         <Card className="border-border bg-card shadow-sm h-full">
           <CardHeader className="border-b border-border">
@@ -249,105 +334,55 @@ export default function AgentDashboardPage() {
         </Card>
         </div>
 
-      {/* Profile + referral link */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="grid size-9 place-items-center rounded-full bg-amber-500 text-sm font-bold text-white">
-                {profile?.name?.[0]?.toUpperCase() ?? profile?.email?.[0]?.toUpperCase() ?? "A"}
-              </span>
-              My Profile
-              <Badge className="ml-1 bg-amber-500 text-white">{profile?.role}</Badge>
-            </CardTitle>
-            <CardDescription>Your agent account details</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm">
-            <div>
-              <div className="text-xs text-muted-foreground">Name</div>
-              <div className="font-medium">{profile?.name || "—"}</div>
+      {/* My Profile */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardHeader className="border-b border-border">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span className="grid size-9 place-items-center rounded-full bg-amber-500 text-sm font-bold text-white">
+              {profile?.name?.[0]?.toUpperCase() ?? profile?.email?.[0]?.toUpperCase() ?? "A"}
+            </span>
+            My Profile
+            <Badge className="ml-1 bg-amber-500 text-white">{profile?.role}</Badge>
+          </CardTitle>
+          <CardDescription>Your agent account details</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
+          <div>
+            <div className="text-xs text-muted-foreground">Name</div>
+            <div className="font-medium">{profile?.name || "—"}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Email</div>
+            <div className="flex items-center gap-1 font-medium">
+              <Mail className="size-3 text-muted-foreground" /> {profile?.email}
             </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Email</div>
-              <div className="flex items-center gap-1 font-medium">
-                <Mail className="size-3 text-muted-foreground" /> {profile?.email}
-              </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Status</div>
+            <Badge className={profile?.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive"}>
+              {profile?.isActive ? "Active" : "Inactive"}
+            </Badge>
+            {profile?.emailVerified && <Badge variant="outline" className="ml-1 text-[10px]">Verified</Badge>}
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Member since</div>
+            <div className="flex items-center gap-1 text-xs">
+              <Calendar className="size-3 text-muted-foreground" />{" "}
+              {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}
             </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Status</div>
-              <Badge className={profile?.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive"}>
-                {profile?.isActive ? "Active" : "Inactive"}
-              </Badge>
-              {profile?.emailVerified && <Badge variant="outline" className="ml-1 text-[10px]">Verified</Badge>}
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Last login</div>
+            <div className="text-xs">
+              {profile?.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString() : "—"}
             </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Member since</div>
-              <div className="flex items-center gap-1 text-xs">
-                <Calendar className="size-3 text-muted-foreground" />{" "}
-                {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Last login</div>
-              <div className="text-xs">
-                {profile?.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString() : "—"}
-              </div>
-            </div>
-            <div className="col-span-2">
-              <div className="text-xs text-muted-foreground">My referral code</div>
-              <div className="font-mono text-xs font-semibold">{profile?.referralCode ?? "—"}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div id="referral-link" className="scroll-mt-20">
-        <Card className="border-border bg-card shadow-sm h-full">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Link2 className="size-5 text-primary" /> My Referral Link
-            </CardTitle>
-            <CardDescription>Send this to people — anyone who registers with it is counted as your referral</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4">
-            <div className="space-y-1.5">
-              <Label>Referral link</Label>
-              <div className="flex gap-2">
-                <Input value={referralLink || "No referral code on this account"} readOnly className="font-mono text-xs" />
-                <Button onClick={copyLink} disabled={!referralLink} className="shrink-0 bg-primary">
-                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              </div>
-            </div>
-            <div className="rounded-xl border border-border p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <UserPlus className="size-4 text-primary" /> Recent signups
-              </div>
-              {recentSignups.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No one has registered with your link yet.</p>
-              ) : (
-                <div className="divide-y divide-border">
-                  {recentSignups.map((r) => (
-                    <div key={r.id} className="flex items-center gap-2 py-1.5 text-xs">
-                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-bold">
-                        {(r.referee.name ?? r.referee.email)[0]?.toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">{r.referee.name || r.referee.email}</span>
-                      <span className="shrink-0 text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
-                      {r.status === "REWARDED" ? (
-                        <Badge className="bg-secondary text-white text-[10px]">Rewarded</Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-500/30 text-amber-600 text-[10px]">Pending</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        </div>
-      </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">My referral code</div>
+            <div className="font-mono text-xs font-semibold">{profile?.referralCode ?? "—"}</div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Referred users */}
       <div id="referred-users" className="scroll-mt-20">

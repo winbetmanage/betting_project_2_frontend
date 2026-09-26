@@ -48,9 +48,21 @@ export function useBetSlip(): SlipContextValue {
 export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const t = useTranslations("home");
   const [legs, setLegs] = useState<SlipLeg[]>([]);
+  const [maxLegs, setMaxLegs] = useState(30);
   const [stake, setStake] = useState("10");
   const [placing, setPlacing] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    api
+      .get<{ data: { maxLegs?: number | null } }>("/settings/public", token ?? undefined)
+      .then((r) => {
+        const v = Number(r.data?.maxLegs);
+        if (Number.isFinite(v) && v >= 1) setMaxLegs(Math.floor(v));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     try {
@@ -82,8 +94,8 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const add = useCallback(
     (leg: SlipLeg) => {
       if (legs.some((l) => l.selectionId === leg.selectionId)) return true;
-      if (legs.length >= MAX_SLIP_LEGS) {
-        toast.error(t("maxLegs", { n: MAX_SLIP_LEGS }));
+      if (legs.length >= maxLegs) {
+        toast.error(t("maxLegs", { n: maxLegs }));
         return false;
       }
       const sameMarket = legs.find((l) => l.marketId === leg.marketId);
@@ -94,7 +106,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       setLegs((prev) => [...prev, leg]);
       return true;
     },
-    [legs, t]
+    [legs, maxLegs, t]
   );
 
   const remove = useCallback((selectionId: string) => setLegs((prev) => prev.filter((l) => l.selectionId !== selectionId)), []);

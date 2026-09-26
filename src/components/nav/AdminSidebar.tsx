@@ -8,6 +8,7 @@ import {
   Ticket,
   ShieldCheck,
   Users,
+  Briefcase,
   Wallet,
   Settings,
   Globe,
@@ -68,6 +69,7 @@ const moneyItems = [
 
 const usersItems = [
   { key: "users", title: "Users", url: "/admin/users", icon: Users },
+  { key: "agents", title: "Agents", url: "/admin/users/agents", icon: Briefcase },
   { key: "inactive-users", title: "Inactive Users", url: "/admin/users/inactive", icon: UserX },
   { key: "devices", title: "Devices Info", url: "/admin/users/devices", icon: Smartphone },
 ];
@@ -84,6 +86,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/bet-games")) return "bet-games";
   if (pathname.startsWith("/admin/bets")) return "bets";
   if (pathname.startsWith("/admin/users/devices")) return "devices";
+  if (pathname.startsWith("/admin/users/agents")) return "agents";
   if (pathname.startsWith("/admin/users/inactive")) return "inactive-users";
   if (pathname.startsWith("/admin/users/referral-bonus")) return "referral-bonus";
   if (pathname.startsWith("/admin/users/withdrawal-requests")) return "withdrawal-requests";

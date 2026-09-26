@@ -56,8 +56,15 @@
     "signingUp": "Signing up...",
     "passwordMismatch": "Passwords do not match",
     "referredBy": "You were referred by",
-    "badRefCode": "wasn't recognized — you can still sign up.",
-    "referralCode": "Referral code"
+    "badRefCode": "wasn't recognized - you can still sign up.",
+    "referralCode": "Referral code",
+    "agentCodeLabel": "Agent code (optional)",
+    "agentCodePh": "Enter your agent's code, if you have one",
+    "agentMatch": "You are registering under agent",
+    "agentNoMatch": "No agent found with this code - you can still sign up.",
+    "agentBannerKicker": "REGISTERING UNDER AGENT",
+    "requireAgentNotice": "Registration on this platform requires an agent - enter your agent's code below.",
+    "requireAgentError": "Registration requires a valid agent referral code."
   },
   "home": {
     "liveOnly": "LIVE ONLY",
@@ -124,6 +131,7 @@
     "betPlacedId": "Bet placed! ID: {id}",
     "couldNotPlace": "Could not place bet",
     "maxStake": "Maximum stake per bet is ETB {amount}",
+    "maxPayout": "Maximum ticket payout is ETB {amount}",
     "removeSelection": "Remove selection",
     "clearSlip": "Clear slip",
     "reviewBet": "REVIEW {kind}",

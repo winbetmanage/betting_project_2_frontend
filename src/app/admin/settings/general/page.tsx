@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Settings, Save, RefreshCw, Gift } from "lucide-react";
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
@@ -27,6 +28,7 @@ type AppSetting = {
 export default function GeneralSettingsPage() {
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [boolDrafts, setBoolDrafts] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -37,6 +39,7 @@ export default function GeneralSettingsPage() {
       const list = res.data ?? [];
       setSettings(list);
       setDrafts(Object.fromEntries(list.map((s) => [s.key, s.kind === "number" ? String(s.valueNumber ?? "") : s.valueString ?? ""])));
+      setBoolDrafts(Object.fromEntries(list.filter((s) => s.kind === "boolean").map((s) => [s.key, s.valueBool ?? false])));
     } catch (e) {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Failed to load settings");
     } finally {
@@ -56,7 +59,12 @@ export default function GeneralSettingsPage() {
     }
     setSavingKey(s.key);
     try {
-      const body = s.kind === "number" ? { valueNumber: Number(raw) } : { valueString: raw };
+      const body =
+        s.kind === "number"
+          ? { valueNumber: Number(raw) }
+          : s.kind === "boolean"
+            ? { valueBool: !!boolDrafts[s.key] }
+            : { valueString: raw };
       await api.patch(`/settings/${encodeURIComponent(s.key)}`, body, getAccessToken());
       toast.success(`${s.label} saved — applies to pending referrals immediately`);
       await load();
@@ -112,17 +120,27 @@ export default function GeneralSettingsPage() {
                     )}
                   </div>
                   <div className="flex items-end gap-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Value (ETB)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={drafts[s.key] ?? ""}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
-                        className="h-9 w-36 font-mono"
-                      />
-                    </div>
+                    {s.kind === "boolean" ? (
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={!!boolDrafts[s.key]}
+                          onCheckedChange={(v) => setBoolDrafts((d) => ({ ...d, [s.key]: v }))}
+                        />
+                        <span className="text-sm font-medium">{boolDrafts[s.key] ? "ON — agent required" : "OFF — open registration"}</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Value (ETB)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={drafts[s.key] ?? ""}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
+                          className="h-9 w-36 font-mono"
+                        />
+                      </div>
+                    )}
                     <Button size="sm" onClick={() => save(s)} disabled={savingKey === s.key} className="gap-1.5 bg-primary">
                       {savingKey === s.key ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />} Save
                     </Button>

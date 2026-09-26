@@ -112,6 +112,7 @@ type FundReq = {
 type Upline = {
   referrer: { id: string; email: string; name: string | null; role: string };
   codeUsed: string;
+  codeType?: string | null;
   status: string;
   bonusAmount: string | number;
   createdAt: string;
@@ -474,16 +475,29 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </span>
             {upline ? (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-muted-foreground">Registered via upline agent</span>
-                <Link href={`/admin/users/${upline.referrer.id}`} className="font-semibold text-primary hover:underline">
-                  {upline.referrer.name || upline.referrer.email}
-                </Link>
-                <Badge className={roleBadgeClass(upline.referrer.role)}>{upline.referrer.role}</Badge>
-                <span className="font-mono text-xs text-muted-foreground">code {upline.codeUsed}</span>
+                <span className="text-muted-foreground">Registered with code</span>
+                <span className="font-mono text-xs font-semibold">{upline.codeUsed}</span>
+                {upline.codeType && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {upline.codeType === "SECONDARY" ? "Agent code" : "Referral link"}
+                  </Badge>
+                )}
+                <span className="text-muted-foreground">·</span>
+                {upline.referrer ? (
+                  <>
+                    <span className="text-muted-foreground">by</span>
+                    <Link href={`/admin/users/${upline.referrer.id}`} className="font-semibold text-primary hover:underline">
+                      {upline.referrer.name || upline.referrer.email}
+                    </Link>
+                    <Badge className={roleBadgeClass(upline.referrer.role)}>{upline.referrer.role}</Badge>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">referrer no longer on record</span>
+                )}
                 <Badge variant="outline" className="text-[10px]">{upline.status}</Badge>
               </div>
             ) : (
-              <span className="text-muted-foreground">Registered directly — no upline agent.</span>
+              <span className="text-muted-foreground">Registered directly — no referral code used.</span>
             )}
           </CardContent>
         </Card>
