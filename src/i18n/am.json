@@ -40,7 +40,9 @@
     "sportsTitle": "ስፖርቶች",
     "termsRules": "ውሎች እና ደንቦች",
     "signinRequiredTitle": "መግባት ያስፈልጋል",
-    "signinRequiredBody": "ውርርድ ለማስገባት እና ኪስዎን ለማስተዳደር ይግቡ ወይም መለያ ይፍጠሩ። ጨዋታዎችን ማየት ነፃ ነው።"
+    "signinRequiredBody": "ውርርድ ለማስገባት እና ኪስዎን ለማስተዳደር ይግቡ ወይም መለያ ይፍጠሩ። ጨዋታዎችን ማየት ነፃ ነው።",
+    "staffBrowsingAs": "እንደ {role} ገብተዋል — ለማየት ብቻ",
+    "openDashboard": "{dashboard} ክፈት"
   },
   "auth": {
     "welcomeBack": "እንኳን ደህና መጡ",

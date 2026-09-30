@@ -40,7 +40,9 @@
     "sportsTitle": "SPORTS",
     "termsRules": "Terms & Rules",
     "signinRequiredTitle": "Sign in required",
-    "signinRequiredBody": "Sign in or create an account to place bets and manage your wallet. Browsing games is free."
+    "signinRequiredBody": "Sign in or create an account to place bets and manage your wallet. Browsing games is free.",
+    "staffBrowsingAs": "Signed in as {role} — browsing only",
+    "openDashboard": "Open {dashboard}"
   },
   "auth": {
     "welcomeBack": "Welcome back",

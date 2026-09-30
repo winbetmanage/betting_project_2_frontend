@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import UserNav from "@/components/nav/UserNav";
+import StaffBrowseBanner from "@/components/nav/StaffBrowseBanner";
 import { BetSlipProvider } from "@/components/bets/BetSlipProvider";
 import { BetSlipPanel } from "@/components/bets/BetSlipPanel";
 
@@ -14,6 +15,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
       <BetSlipProvider>
         <div className="min-h-dvh bg-background text-foreground">
           <UserNav />
+          <StaffBrowseBanner />
           <main>{children}</main>
         </div>
         <BetSlipPanel />
@@ -28,6 +30,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
     <BetSlipProvider>
       <div className="min-h-dvh bg-brand-dark text-white">
         <UserNav />
+        <StaffBrowseBanner />
         <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
       </div>
       <BetSlipPanel />

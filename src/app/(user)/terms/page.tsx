@@ -98,7 +98,6 @@ const SECTIONS: RuleSection[] = [
     icon: ClipboardCheck,
     title: "Settlement",
     points: [
-      "Standard markets (match winner, over/under, both teams to score) settle on the 90-minute result plus stoppage time. Extra time and penalties do not count.",
       "If the official source corrects a result, settlement may be corrected too.",
       "Bets placed on markets with obvious odds errors may be voided.",
     ],
