@@ -37,7 +37,10 @@
     "agentBanner": "እንደ ኤጀንት ገብተዋል — ማሰስ ብቻ ነው፣ በዚህ መለያ ውርርድ አይፈቀድም።",
     "returnToAgent": "ወደ ኤጀንት ዳሽቦርድ ተመለስ",
     "signOut": "ውጣ",
-    "sportsTitle": "ስፖርቶች"
+    "sportsTitle": "ስፖርቶች",
+    "termsRules": "ውሎች እና ደንቦች",
+    "signinRequiredTitle": "መግባት ያስፈልጋል",
+    "signinRequiredBody": "ውርርድ ለማስገባት እና ኪስዎን ለማስተዳደር ይግቡ ወይም መለያ ይፍጠሩ። ጨዋታዎችን ማየት ነፃ ነው።"
   },
   "auth": {
     "welcomeBack": "እንኳን ደህና መጡ",
@@ -132,6 +135,11 @@
     "couldNotPlace": "ውርርድ ማስገባት አልተቻለም",
     "maxStake": "ከፍተኛ የውርርድ መጠን ETB {amount} ነው",
     "minStake": "ዝቅተኛ የቲኬት መጠን ETB {amount} ነው",
+    "firstDepositBonusTitle": "የመጀመሪያ ማስገቢያ ጉርሻ",
+    "firstDepositBonusBody": "ETB {threshold} ወይም ከዚያ በላይ አስገብተው ETB {flat} ጉርሻ ያግኙ — ወይም ከትንሽ ማስገቢያ {percent}% ያግኙ። ጉርሻው ለውርርድ ብቻ ሲሆን በ{days} {dayWord} ውስጥ ያበቃል።",
+    "bonusDepositCta": "አሁን አስገባ",
+    "day": "ቀን",
+    "days": "ቀናት",
     "maxPayout": "ከፍተኛ የቲኬት ክፍያ ETB {amount} ነው",
     "removeSelection": "ምርጫን አስወግድ",
     "clearSlip": "ወረቀቱን አጽዳ",
@@ -261,6 +269,12 @@
     "selectAccountErr": "የማስተላለፊያ መለያ ይምረጡ",
     "depositSubmitted": "የማስገቢያ ጥያቄ ገብቷል",
     "depositFailed": "ማስገቢያ አልተሳካም",
+    "bonusTitle": "የመጀመሪያ ማስገቢያ ጉርሻ",
+    "bonusNote": "ለውርርድ ብቻ, ማውጣት አይቻልም · የሚያበቃው {date}",
+    "heldShort": "የተያዘ (በመጠባበቅ ላይ)",
+    "bonusShort": "ጉርሻ (ለውርርድ ብቻ)",
+    "staffNoWalletTitle": "የሰራተኛ መለያ — ለማየት ብቻ",
+    "staffNoWalletBody": "በሰራተኛ መለያዎች ላይ ማስገቢያ እና ማውጫ ተሰናክሏል። ውርርድም እንዲሁ ተሰናክሏል።",
     "setupPayout": "መጀመሪያ የክፍያ መለያዎን ያዘጋጁ",
     "setupPayoutSub": "ማውጫዎች ወደ መገለጫዎ ላይ ወዳለው የክፍያ መለያ ይላካሉ። አንድ ጊዜ ይጨምሩ እና እዚህ ይመለሱ።",
     "goToProfile": "ወደ መገለጫ ማዘጋጃ ሂድ",
@@ -459,5 +473,19 @@
       "title": "{pick}",
       "body": "'{pick}' ውጤት በዚህ ገበያ ህጎች መሰረት በተጠቀሰው የጨዋታ ክፍል ከተከሰተ ያሸንፋሉ።"
     }
+  },
+  "password": {
+    "title": "የይለፍ ቃል ቀይር",
+    "description": "የአሁኑን ይለፍ ቃል ያስገቡ እና አዲስ ይምረጡ።",
+    "currentPassword": "የአሁኑ ይለፍ ቃል",
+    "newPassword": "አዲስ ይለፍ ቃል",
+    "confirmPassword": "አዲሱን ይለፍ ቃል ያረጋግጡ",
+    "changePassword": "ይለፍ ቃል ቀይር",
+    "changing": "በመቀየር ላይ…",
+    "fillAll": "እባክዎ ሁሉንም መስኮች ይሙሉ",
+    "tooShort": "አዲሱ ይለፍ ቃል ቢያንስ 6 ፊደሎች መሆን አለበት",
+    "mismatch": "አዲሱ ይለፍ ቃሎች አይዛመዱም",
+    "success": "የይለፍ ቃል በተሳካ ሁኔታ ተቀይሯል",
+    "failed": "የይለፍ ቃል መቀየር አልተቻለም"
   }
 }

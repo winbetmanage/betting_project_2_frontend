@@ -2,7 +2,7 @@ const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").trim();
 export const API_URL = RAW_API_URL.replace(/\/$/, ""); // empty => use Next.js rewrite proxy, otherwise absolute backend URL
 
 import { tryRefreshSession, handleRefreshFailure } from "./sessionRefresh";
-import { getAccessToken as getAccessTokenSync } from "./auth";
+import { getAccessToken as getAccessTokenSync, getRefreshToken as getRefreshTokenSync } from "./auth";
 
 export class ApiError extends Error {
   status: number;
@@ -52,6 +52,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   // Only genuine 401s trigger refresh; 429 (rate limit) and network errors must not log the user out.
   const isAuthPath = path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/register");
   if (res.status === 401 && !_retry && !isAuthPath) {
+    // No session at all (guest browsing public pages): a 401 just means
+    // "sign in for this endpoint". Report it, never bounce to /login.
+    if (!effectiveToken && !getRefreshTokenSync()) {
+      throw new ApiError(res.status, (json as { message?: string }).message ?? "Sign in required");
+    }
     const newToken = await tryRefresh();
     if (newToken) {
       // retry original request with new token

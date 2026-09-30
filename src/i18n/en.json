@@ -37,7 +37,10 @@
     "agentBanner": "Signed in as an agent — browsing only, betting is disabled on this account.",
     "returnToAgent": "Return to Agent Dashboard",
     "signOut": "Sign out",
-    "sportsTitle": "SPORTS"
+    "sportsTitle": "SPORTS",
+    "termsRules": "Terms & Rules",
+    "signinRequiredTitle": "Sign in required",
+    "signinRequiredBody": "Sign in or create an account to place bets and manage your wallet. Browsing games is free."
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -132,6 +135,11 @@
     "couldNotPlace": "Could not place bet",
     "maxStake": "Maximum stake per bet is ETB {amount}",
     "minStake": "Minimum stake per ticket is ETB {amount}",
+    "firstDepositBonusTitle": "First-deposit bonus",
+    "firstDepositBonusBody": "Deposit ETB {threshold} or more and get ETB {flat} bonus — or get {percent}% of a smaller deposit. Bonus is for betting only and expires in {days} {dayWord}.",
+    "bonusDepositCta": "Deposit now",
+    "day": "day",
+    "days": "days",
     "maxPayout": "Maximum ticket payout is ETB {amount}",
     "removeSelection": "Remove selection",
     "clearSlip": "Clear slip",
@@ -261,6 +269,12 @@
     "selectAccountErr": "Select a transfer account",
     "depositSubmitted": "Deposit request submitted",
     "depositFailed": "Deposit failed",
+    "bonusTitle": "First-deposit bonus",
+    "bonusNote": "Betting only, cannot be withdrawn · expires {date}",
+    "heldShort": "Held (pending)",
+    "bonusShort": "Bonus (betting only)",
+    "staffNoWalletTitle": "Staff account — browsing only",
+    "staffNoWalletBody": "Deposits and withdrawals are disabled on staff accounts. Betting is disabled too.",
     "setupPayout": "Set up your payout account first",
     "setupPayoutSub": "Withdrawals are sent to the payout account on your profile. Add it once, then come back here.",
     "goToProfile": "Go to profile setup",
@@ -459,5 +473,19 @@
       "title": "{pick}",
       "body": "You win if the outcome '{pick}' happens under this market's rules at the stated period of the game."
     }
+  },
+  "password": {
+    "title": "Change password",
+    "description": "Enter your current password and choose a new one.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "changePassword": "Change password",
+    "changing": "Changing…",
+    "fillAll": "Please fill in all fields",
+    "tooShort": "New password must be at least 6 characters",
+    "mismatch": "New passwords do not match",
+    "success": "Password changed successfully",
+    "failed": "Could not change password"
   }
 }

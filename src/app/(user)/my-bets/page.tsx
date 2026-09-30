@@ -24,6 +24,7 @@ import {
   ReceiptText,
 } from "lucide-react";
 import { TeamLogo } from "@/components/TeamLogo";
+import RoleGate from "@/components/auth/RoleGate";
 
 type BetSelection = {
   id: string;
@@ -69,7 +70,7 @@ const statusConfig: Record<string, { key: string; cls: string; icon: React.Compo
   CASHED_OUT: { key: "cashedOut", cls: "bg-sky-500/15 text-sky-300 border-sky-500/20", icon: RefreshCw },
 };
 
-export default function MyBetsPage() {
+function MyBetsPageInner() {
   const t = useTranslations("bets");
   const [token, setToken] = useState<string | null>(null);
   const [bets, setBets] = useState<Bet[]>([]);
@@ -306,5 +307,13 @@ export default function MyBetsPage() {
         onConfirm={() => setReceiptBet(null)}
       />
     </div>
+  );
+}
+
+export default function MyBetsPage() {
+  return (
+    <RoleGate roles={["USER", "ADMIN", "AGENT"]} guestPrompt loading="Checking your session...">
+      <MyBetsPageInner />
+    </RoleGate>
   );
 }

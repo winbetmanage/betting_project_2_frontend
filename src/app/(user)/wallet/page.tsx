@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { api, API_URL } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { getAccessToken, getUser } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, Upload, ArrowDownToLine, ArrowUpFromLine, History, Loader2 } from "lucide-react";
+import RoleGate from "@/components/auth/RoleGate";
 
 type TransferAccount = { id: string; accountName: string | null; accountNumber: string; bankName: string | null; status: boolean };
 type FundRequest = {
@@ -40,11 +41,11 @@ const statusBadge: Record<string, { c: string; tKey: string }> = {
   CANCELLED: { c: "bg-white/10 text-white/60 border-white/10", tKey: "cancelled" },
 };
 
-export default function UserWalletPage() {
+function UserWalletPageInner() {
   const t = useTranslations("wallet");
   const [token, setToken] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<TransferAccount[]>([]);
-  const [balance, setBalance] = useState<{ balance: number; heldBalance: number; available: number }>({ balance: 0, heldBalance: 0, available: 0 });
+  const [balance, setBalance] = useState<{ balance: number; heldBalance: number; available: number; lockedBonus: number; bonusExpiresAt: string | null }>({ balance: 0, heldBalance: 0, available: 0, lockedBonus: 0, bonusExpiresAt: null });
   const [requests, setRequests] = useState<FundRequest[]>([]);
 
   // Deposit form
@@ -59,11 +60,16 @@ export default function UserWalletPage() {
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [minDeposit, setMinDeposit] = useState(100);
+  const [myRole, setMyRole] = useState<string | null>(null);
+
+  // Staff accounts may browse but cannot move money.
+  const staffBlocked = !!token && !!myRole && myRole !== "USER";
 
   const maxWithdrawable = Math.max(0, Math.floor((balance.available - 100) * 100) / 100);
 
   useEffect(() => {
     setToken(getAccessToken());
+    setMyRole(getUser()?.role ?? null);
   }, []);
 
   useEffect(() => {
@@ -71,7 +77,7 @@ export default function UserWalletPage() {
     if (!tok) return;
     Promise.all([
       api.get<{ data: TransferAccount[] }>("/transfer-accounts/active", tok).then((r) => r.data ?? []).catch(() => []),
-      api.get<{ data: typeof balance }>("/funds/balance", tok).then((r) => r.data).catch(() => ({ balance: 0, heldBalance: 0, available: 0 })),
+      api.get<{ data: typeof balance }>("/funds/balance", tok).then((r) => r.data).catch(() => ({ balance: 0, heldBalance: 0, available: 0, lockedBonus: 0, bonusExpiresAt: null })),
       api.get<{ data: FundRequest[] }>("/funds/requests", tok).then((r) => r.data ?? []).catch(() => []),
       api.get<{ data: ProfilePayout }>("/users/me", tok).then((r) => r.data).catch(() => null),
       api.get<{ data: { minDeposit: number } }>("/settings/public", tok).then((r) => r.data).catch(() => ({ minDeposit: 100 })),
@@ -96,6 +102,7 @@ export default function UserWalletPage() {
 
   const handleDeposit = async (e: FormEvent) => {
     e.preventDefault();
+    if (staffBlocked) return toast.error(t("staffNoWalletBody"));
     if (!deposit.transferAccountId) return toast.error(t("selectAccountErr"));
     if (!deposit.senderReference.trim() && !proofFile) return toast.error(t("proofOrRefErr"));
     const tok = getAccessToken() ?? token;
@@ -131,6 +138,7 @@ export default function UserWalletPage() {
 
   const openWithdrawConfirm = (e: FormEvent) => {
     e.preventDefault();
+    if (staffBlocked) return toast.error(t("staffNoWalletBody"));
     const amount = Number(withdraw.amount);
     if (!(amount > 0)) return toast.error(t("enterAmount"));
     if (amount < 100) return toast.error(t("minWithdraw"));
@@ -185,21 +193,45 @@ export default function UserWalletPage() {
         <p className="mt-1 text-sm text-white/60">{t("walletSub")}</p>
       </div>
 
-      {/* Balance */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-5">
-          <div className="flex items-center gap-1.5 text-xs text-secondary"><Wallet className="size-4" /> {t("available")}</div>
-          <div className="mt-1 text-3xl font-bold text-white">ETB {balance.available.toFixed(2)}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div className="text-xs text-white/50">{t("balance")}</div>
-          <div className="mt-1 text-2xl font-semibold">ETB {balance.balance.toFixed(2)}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div className="text-xs text-white/50">{t("held")}</div>
-          <div className="mt-1 text-2xl font-semibold">ETB {balance.heldBalance.toFixed(2)}</div>
+      {/* Balance — one hero number with the breakdown underneath */}
+      <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-5">
+        <div className="flex items-center gap-1.5 text-xs text-secondary"><Wallet className="size-4" /> {t("balance")}</div>
+        <div className="mt-1 text-3xl font-bold text-white">ETB {balance.balance.toFixed(2)}</div>
+        <div className="mt-2 space-y-0.5 border-t border-white/10 pt-2 text-xs">
+          <div className="flex justify-between gap-3">
+            <span className="text-white/50">{t("available")}</span>
+            <span className="font-semibold text-white">ETB {balance.available.toFixed(2)}</span>
+          </div>
+          {balance.heldBalance > 0 && (
+            <div className="flex justify-between gap-3">
+              <span className="text-white/50">{t("heldShort")}</span>
+              <span className="text-white/70">ETB {balance.heldBalance.toFixed(2)}</span>
+            </div>
+          )}
+          {balance.lockedBonus > 0 && (
+            <div className="flex justify-between gap-3">
+              <span className="text-white/50">{t("bonusShort")}</span>
+              <span className="text-white/70">ETB {balance.lockedBonus.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {balance.lockedBonus > 0 && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm">
+          <div className="font-semibold text-amber-300">{t("bonusTitle")}: ETB {balance.lockedBonus.toFixed(2)}</div>
+          <p className="mt-0.5 text-xs text-white/60">
+            {t("bonusNote", { date: balance.bonusExpiresAt ? new Date(balance.bonusExpiresAt).toLocaleDateString() : "—" })}
+          </p>
+        </div>
+      )}
+
+      {staffBlocked && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm">
+          <div className="font-semibold text-amber-300">{t("staffNoWalletTitle")}</div>
+          <p className="mt-0.5 text-xs text-white/60">{t("staffNoWalletBody")}</p>
+        </div>
+      )}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -244,7 +276,7 @@ export default function UserWalletPage() {
               />
               {proofFile && <p className="truncate text-xs text-white/60">{proofFile.name}</p>}
             </div>
-            <Button type="submit" disabled={depositing || !deposit.amount || !deposit.transferAccountId || (!deposit.senderReference.trim() && !proofFile)} className="bg-secondary">
+            <Button type="submit" disabled={depositing || staffBlocked || !deposit.amount || !deposit.transferAccountId || (!deposit.senderReference.trim() && !proofFile)} className="bg-secondary">
               {depositing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} {t("submitDeposit")}
             </Button>
           </form>
@@ -276,7 +308,7 @@ export default function UserWalletPage() {
               </div>
               <a href="/profile" className="inline-block text-xs text-primary-light hover:underline">{t("changePayout")}</a>
             </div>
-            <Button type="submit" disabled={withdrawing || !withdraw.amount} className="bg-primary">
+            <Button type="submit" disabled={withdrawing || staffBlocked || !withdraw.amount} className="bg-primary">
               {withdrawing ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpFromLine className="size-4" />} {t("reviewWithdrawal")}
             </Button>
           </form>
@@ -295,7 +327,7 @@ export default function UserWalletPage() {
                   <div className="flex justify-between"><span className="text-white/50">{t("remaining")}</span><span className="text-white">ETB {(balance.available - Number(withdraw.amount || 0)).toFixed(2)}</span></div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Button variant="outline" className="flex-1" disabled={withdrawing} onClick={() => setConfirmOpen(false)}>{t("back")}</Button>
+                  <Button variant="outline" className="flex-1 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white" disabled={withdrawing} onClick={() => setConfirmOpen(false)}>{t("back")}</Button>
                   <Button className="flex-1 bg-secondary" disabled={withdrawing} onClick={handleWithdraw}>
                     {withdrawing ? <Loader2 className="size-4 animate-spin" /> : t("confirmSubmit")}
                   </Button>
@@ -352,5 +384,13 @@ export default function UserWalletPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function UserWalletPage() {
+  return (
+    <RoleGate roles={["USER", "ADMIN", "AGENT"]} guestPrompt loading="Checking your session...">
+      <UserWalletPageInner />
+    </RoleGate>
   );
 }

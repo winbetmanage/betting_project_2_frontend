@@ -31,6 +31,9 @@ type DetailUser = {
   role: string;
   balance: string | number;
   heldBalance?: string | number | null;
+  lockedBonus?: string | number | null;
+  bonusGrantedAt?: string | null;
+  firstTimeDeposit?: boolean | null;
   isActive: boolean;
   emailVerified: boolean;
   referralCode: string | null;
@@ -231,6 +234,12 @@ export default function SubadminUserDetailPage({ params }: { params: Promise<{ i
             <div className="text-xs text-muted-foreground">Available / held</div>
             <div className="mt-1 font-mono text-2xl font-bold">ETB {available.toFixed(2)}</div>
             <div className="text-[11px] text-muted-foreground">ETB {held.toFixed(2)} held on pending requests</div>
+            {(Number(user.lockedBonus ?? 0) > 0 || user.firstTimeDeposit) && (
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                ETB {Number(user.lockedBonus ?? 0).toFixed(2)} locked bonus (betting only)
+                {user.firstTimeDeposit ? " · first deposit done" : ""}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="border-border bg-card shadow-sm">

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Mail, Wallet, Calendar, Clock, ShieldCheck, Save, RefreshCw, Copy, Check, KeyRound } from "lucide-react";
 import { displayRole } from "@/lib/roles";
+import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
@@ -220,6 +221,8 @@ export default function SubadminProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

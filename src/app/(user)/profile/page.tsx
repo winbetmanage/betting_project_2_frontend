@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity, Gift, Copy, Users, Landmark, Loader2 } from "lucide-react";
+import { Wallet, User, Mail, Calendar, ShieldCheck, ArrowDownCircle, ArrowUpCircle, Activity, Landmark, Loader2 } from "lucide-react";
+import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
+import RoleGate from "@/components/auth/RoleGate";
 
 type Transaction = {
   id: string;
@@ -36,7 +38,7 @@ type ProfileUser = AuthUser & {
   payoutAccountUsername?: string | null;
 };
 
-export default function UserProfilePage() {
+function UserProfilePageInner() {
   const t = useTranslations("profile");
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -207,39 +209,8 @@ export default function UserProfilePage() {
             </Button>
           </div>
 
-          {/* Referral card */}
-          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-primary-light">
-              <Gift className="size-4" /> {t("referEarn")}
-            </div>
-            <p className="mt-2 text-sm text-white/70">
-              {t("referLead")} <span className="font-semibold text-white">ETB 100+</span>{t("referMid")} <span className="font-semibold text-secondary">ETB 50</span>{t("referEnd")}
-            </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
-                <Users className="size-4 shrink-0 text-white/40" />
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-white/80">
-                  {typeof window !== "undefined" && user?.referralCode
-                    ? `${window.location.origin}/signup?ref=${user.referralCode}`
-                    : user?.referralCode ?? "—"}
-                </span>
-                <button
-                  onClick={() => {
-                    if (!user?.referralCode) return;
-                    const link = `${window.location.origin}/signup?ref=${user.referralCode}`;
-                    navigator.clipboard
-                      .writeText(link)
-                      .then(() => toast.success(t("linkCopied")))
-                      .catch(() => toast.error(t("copyFailed")));
-                  }}
-                  disabled={!user?.referralCode}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90 disabled:opacity-40"
-                >
-                  <Copy className="size-3.5" /> {t("copy")}
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Change password */}
+          <ChangePasswordCard variant="dark" />
 
           {/* Transactions */}
           <div className="rounded-2xl border border-white/10 bg-white/5">
@@ -288,5 +259,13 @@ export default function UserProfilePage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function UserProfilePage() {
+  return (
+    <RoleGate roles={["USER", "ADMIN", "AGENT"]} guestPrompt loading="Checking your session...">
+      <UserProfilePageInner />
+    </RoleGate>
   );
 }

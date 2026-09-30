@@ -135,7 +135,10 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const place = useCallback(async (): Promise<{ betId?: string; error?: string }> => {
     const token = getAccessToken();
     if (!token) return { error: t("signinToBet") };
-    if (getUser()?.role === "AGENT") {
+    // Only plain user accounts may bet. Staff (admin/agent) can browse the
+    // site but cannot place bets.
+    const bettingRole = getUser()?.role;
+    if (bettingRole && bettingRole !== "USER") {
       toast.error(t("needUserAccount"));
       return { error: t("needUserAccount") };
     }

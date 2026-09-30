@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserCircle, Wallet, ChevronDown } from "lucide-react";
+import { UserCircle, Wallet, ChevronDown, ScrollText } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/admin/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -169,6 +169,10 @@ export default function UserNav() {
                 <DropdownMenuItem render={<Link href="/profile" className="flex items-center gap-2 w-full" />} className="cursor-pointer">
                   <UserCircle className="size-4" />
                   {t("myProfile")}
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/terms" className="flex items-center gap-2 w-full" />} className="cursor-pointer">
+                  <ScrollText className="size-4" />
+                  {t("termsRules")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <div className="px-2 py-1">

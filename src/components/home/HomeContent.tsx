@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { getUser, getUserRole, isAuthenticated, getAccessToken } from "@/lib/auth";
-import { homePathForRole } from "@/lib/roles";
+import { isAuthenticated, getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
@@ -13,6 +12,7 @@ import { TeamLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
 import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
+import { SignInPromptDialog } from "@/components/auth/SignInPrompt";
 import { timeRemaining, isBettingWindowOpen } from "@/lib/timeRemaining";
 import {
   Monitor,
@@ -29,6 +29,7 @@ import {
   Wallet,
   UserCircle,
   ArrowRight,
+  Gift,
 } from "lucide-react";
 
 type Sport = {
@@ -135,9 +136,11 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [confirmReceipt, setConfirmReceipt] = useState<ReceiptData | null>(null);
   const [placedReceipt, setPlacedReceipt] = useState<ReceiptData | null>(null);
+  const [promptOpen, setPromptOpen] = useState(false);
   const [activeSport, setActiveSport] = useState<string | null>(null);
   const [activeLeague, setActiveLeague] = useState<string | null>(null);
   const [results, setResults] = useState<ResultGame[]>([]);
+  const [bonusBanner, setBonusBanner] = useState<{ enabled: boolean; minDeposit: number; flatAmount: number; percent: number; expiryDays: number } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -167,6 +170,27 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       .catch(() => setResults([]));
   }, []);
 
+  // First-deposit bonus banner: only for signed-in accounts that never had an
+  // approved deposit (firstTimeDeposit === false), using the live bonus policy.
+  useEffect(() => {
+    if (isGuest) return;
+    const token = getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    Promise.all([
+      api.get<{ data: { firstTimeDeposit?: boolean | null } }>("/users/me", token).then((r) => r.data).catch(() => null),
+      api.get<{ data: { bonus?: { enabled: boolean; minDeposit: number; flatAmount: number; percent: number; expiryDays: number } | null } }>("/settings/public", token).then((r) => r.data?.bonus ?? null).catch(() => null),
+    ]).then(([me, bonus]) => {
+      if (cancelled) return;
+      if (!me || me.firstTimeDeposit !== false || !bonus || !bonus.enabled) return;
+      if (!(bonus.flatAmount > 0) && !(bonus.percent > 0)) return;
+      setBonusBanner(bonus);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGuest]);
+
   // Sync active sport filter from the mobile menu drawer
   useEffect(() => {
     const onSportSelect = (e: Event) => {
@@ -180,7 +204,12 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
 
   const openReceipt = () => {
     if (isGuest) {
-      router.push("/login");
+      setPromptOpen(true);
+      return;
+    }
+    const bettingRole = getUser()?.role;
+    if (bettingRole && bettingRole !== "USER") {
+      toast.error(t("needUserAccount"));
       return;
     }
     if (slip.count === 0) {
@@ -341,6 +370,35 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
           <div className="hidden sm:block">
             <PromoSlider />
           </div>
+
+          {/* First-deposit bonus notice — only for accounts that never deposited */}
+          {bonusBanner && (
+            <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/20">
+                  <Gift className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold">{t("firstDepositBonusTitle")}</div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-white/90">
+                    {t("firstDepositBonusBody", {
+                      threshold: bonusBanner.minDeposit.toLocaleString("en-US"),
+                      flat: bonusBanner.flatAmount.toLocaleString("en-US"),
+                      percent: bonusBanner.percent,
+                      days: bonusBanner.expiryDays,
+                      dayWord: bonusBanner.expiryDays === 1 ? t("day") : t("days"),
+                    })}
+                  </p>
+                  <Link
+                    href="/wallet"
+                    className="mt-2 inline-block rounded-md bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                  >
+                    {t("bonusDepositCta")}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeLeague === "epl" && (
             <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-[#e2e8f0]">
@@ -515,7 +573,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       {new Date(game.startTime).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </span>
                     <button
-                      onClick={() => router.push(isGuest ? "/login" : `/games/${game.id}`)}
+                      onClick={() => router.push(`/games/${game.id}`)}
                       className="rounded-md bg-[#0a0f2e] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#1a2456]"
                     >
                       {t("details")}
@@ -665,7 +723,9 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   <li><a href="#" className="transition hover:text-white">{t("news")}</a></li>
                   <li><a href="#" className="transition hover:text-white">{t("contact")}</a></li>
                   <li><a href="#" className="transition hover:text-white">{t("privacy")}</a></li>
-                  <li><a href="#" className="transition hover:text-white">{t("terms")}</a></li>
+                  <li>
+                    <Link href="/terms" className="transition hover:text-white">{t("terms")}</Link>
+                  </li>
                   <li><a href="#" className="transition hover:text-white">{t("refund")}</a></li>
                 </ul>
               </div>
@@ -857,6 +917,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
         busy={slip.placing}
         onConfirm={confirmPlace}
       />
+      <SignInPromptDialog open={promptOpen} onOpenChange={setPromptOpen} />
       <BetReceiptDialog
         open={!!placedReceipt}
         onOpenChange={(o) => { if (!o) setPlacedReceipt(null); }}
@@ -878,41 +939,23 @@ function PublicHome() {
 }
 
 export default function HomeContent() {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const sync = () => {
       setAuthed(isAuthenticated());
-      setRole(getUser()?.role ?? getUserRole());
     };
     sync();
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-    // Each role lands on its own dashboard: admin -> /admin, agent -> /agent,
-    // subadmin -> /subadmin. Normal users stay here.
-    if (!authed) return;
-    const target = homePathForRole(role);
-    if (target !== "/") router.replace(target);
-  }, [mounted, authed, role, router]);
-
+  // Everyone stays on the home page: guests browse freely, signed-in users
+  // (players and staff alike) can look around. Betting and wallet actions
+  // gate themselves. Role dashboards are reached via the nav, not forced.
   if (!mounted) {
-    return (
-      <div className="grid min-h-[60vh] place-items-center bg-[#eef2f7]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-14" />
-      </div>
-    );
-  }
-
-  if (authed && homePathForRole(role) !== "/") {
     return (
       <div className="grid min-h-[60vh] place-items-center bg-[#eef2f7]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

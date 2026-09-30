@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChangePasswordCard } from "@/components/auth/ChangePasswordCard";
 import {
   Briefcase,
   Copy,
@@ -383,6 +384,8 @@ export default function AgentDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
 
       {/* Referred users */}
       <div id="referred-users" className="scroll-mt-20">

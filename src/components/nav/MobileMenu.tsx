@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { api } from "@/lib/api";
 import { isSubAdminRole } from "@/lib/roles";
-import { Menu, X, UserCircle, Wallet, Home, Gamepad2, ChevronRight, Trophy, Ticket, Briefcase, ShieldCheck } from "lucide-react";
+import { Menu, X, UserCircle, Wallet, Home, Gamepad2, ChevronRight, Trophy, Ticket, Briefcase, ShieldCheck, ScrollText } from "lucide-react";
 
 type Sport = { id: string; name: string; gameType: string };
 type MobileMenuProps = {
@@ -42,6 +42,7 @@ export default function MobileMenu({ user, role, authed, balance }: MobileMenuPr
     { href: "/games", label: t("games"), icon: Gamepad2 },
     { href: "/my-bets", label: t("myBets"), icon: Ticket },
     { href: "/wallet", label: t("wallet"), icon: Wallet },
+    { href: "/terms", label: t("termsRules"), icon: ScrollText },
   ];
   const pathname = usePathname();
   const router = useRouter();

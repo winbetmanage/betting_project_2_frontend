@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Bell, CheckCheck } from "lucide-react";
 import type { UINotification } from "@/components/notifications/NotificationBell";
+import RoleGate from "@/components/auth/RoleGate";
 
 function timeAgo(iso: string, t: (key: string, vals?: Record<string, string | number>) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -19,7 +20,7 @@ function timeAgo(iso: string, t: (key: string, vals?: Record<string, string | nu
   return t("dayAgo", { n: Math.floor(hrs / 24) });
 }
 
-export default function UserNotificationsPage() {
+function UserNotificationsPageInner() {
   const t = useTranslations("notifications");
   const router = useRouter();
   const [items, setItems] = useState<UINotification[]>([]);
@@ -129,5 +130,13 @@ export default function UserNotificationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UserNotificationsPage() {
+  return (
+    <RoleGate roles={["USER", "ADMIN", "AGENT"]} guestPrompt loading="Checking your session...">
+      <UserNotificationsPageInner />
+    </RoleGate>
   );
 }

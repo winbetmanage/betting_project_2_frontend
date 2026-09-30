@@ -69,6 +69,10 @@ type UserDetail = {
   name: string | null;
   role: string;
   balance: string | number;
+  heldBalance?: string | number | null;
+  lockedBonus?: string | number | null;
+  bonusGrantedAt?: string | null;
+  firstTimeDeposit?: boolean | null;
   isActive: boolean;
   emailVerified: boolean;
   referralCode: string | null;
@@ -537,6 +541,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <div>
               <div className="text-xs text-muted-foreground">Balance</div>
               <div className="font-mono font-semibold">${Number(user.balance).toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Locked bonus</div>
+              <div className="font-mono font-semibold">ETB {Number(user.lockedBonus ?? 0).toFixed(2)}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {user.firstTimeDeposit ? "First deposit done" : "First deposit pending"}
+                {user.bonusGrantedAt ? ` · granted ${new Date(user.bonusGrantedAt).toLocaleDateString()}` : ""}
+              </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Email verified</div>

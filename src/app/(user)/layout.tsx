@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import RoleGate from "@/components/auth/RoleGate";
 import UserNav from "@/components/nav/UserNav";
 import { BetSlipProvider } from "@/components/bets/BetSlipProvider";
 import { BetSlipPanel } from "@/components/bets/BetSlipPanel";
@@ -22,15 +21,16 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
+  // Guests may browse freely (home, games, terms). Betting and wallet /
+  // account pages carry their own RoleGate with an inline sign-in prompt,
+  // so visitors are only asked to sign in when they act.
   return (
-    <RoleGate roles={["USER", "ADMIN"]} fallbackTo="/" loading="Checking your session...">
-      <BetSlipProvider>
-        <div className="min-h-dvh bg-brand-dark text-white">
-          <UserNav />
-          <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-        </div>
-        <BetSlipPanel />
-      </BetSlipProvider>
-    </RoleGate>
+    <BetSlipProvider>
+      <div className="min-h-dvh bg-brand-dark text-white">
+        <UserNav />
+        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      </div>
+      <BetSlipPanel />
+    </BetSlipProvider>
   );
 }

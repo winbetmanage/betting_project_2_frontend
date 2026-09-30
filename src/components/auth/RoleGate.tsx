@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth";
 import { tryRefreshSession, handleRefreshFailure } from "@/lib/sessionRefresh";
 import { roleMatches } from "@/lib/roles";
+import { SignInPromptCard } from "./SignInPrompt";
 
 export type { Role };
 
@@ -33,19 +34,31 @@ export default function RoleGate({
   children,
   fallbackTo = "/",
   loading = "Loading...",
+  guestPrompt = false,
 }: {
   roles: Role[];
   children: ReactNode;
   fallbackTo?: string;
   loading?: string;
+  /**
+   * When true, visitors who are not signed in see an inline sign-in prompt
+   * instead of being redirected to /login. Used by user pages so guests can
+   * keep browsing and only sign in when they act. Defaults to false, so all
+   * existing gates (admin, agent, subadmin) behave exactly as before.
+   */
+  guestPrompt?: boolean;
 }) {
   const router = useRouter();
-  const [allowed, setAllowed] = useState(false);
+  const [phase, setPhase] = useState<"checking" | "allowed" | "guest">("checking");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!isAuthenticated()) {
+        if (guestPrompt) {
+          if (!cancelled) setPhase("guest");
+          return;
+        }
         router.replace("/login");
         return;
       }
@@ -64,7 +77,7 @@ export default function RoleGate({
       const user = getUser();
       const role = user?.role ?? getUserRole();
       if (role && roleMatches(role, roles)) {
-        setAllowed(true);
+        setPhase("allowed");
       } else if (!role) {
         // Token invalid after refresh - force login
         clearSession();
@@ -76,8 +89,9 @@ export default function RoleGate({
     return () => {
       cancelled = true;
     };
-  }, [router, roles, fallbackTo]);
+  }, [router, roles, fallbackTo, guestPrompt]);
 
-  if (!allowed) return <Loading label={loading} />;
+  if (phase === "guest") return <SignInPromptCard />;
+  if (phase !== "allowed") return <Loading label={loading} />;
   return <>{children}</>;
 }

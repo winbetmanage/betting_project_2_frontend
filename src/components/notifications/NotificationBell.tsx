@@ -59,7 +59,7 @@ export function NotificationBell({ scope, allHref, className }: { scope: "user" 
     const t = getAccessToken();
     if (!t) return;
     try {
-      const path = scope === "admin" ? "/notifications/admin?limit=8" : "/notifications/mine?limit=8";
+      const path = scope === "admin" ? "/notifications/admin?limit=3" : "/notifications/mine?limit=3";
       const res = await api.get<{ data: UINotification[] }>(path, t);
       setItems(res.data ?? []);
     } catch {
@@ -117,7 +117,8 @@ export function NotificationBell({ scope, allHref, className }: { scope: "user" 
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/10 bg-[#0a0f2e] text-white shadow-2xl">
+        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-xl border border-secondary/40 bg-[#0a0f2e] text-white shadow-2xl shadow-secondary/10 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
+          <div className="h-0.5 bg-gradient-to-r from-secondary via-primary to-secondary" />
           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
             <span className="text-xs font-semibold">{t("notifications")}{unread > 0 ? ` (${t("unreadN", { n: unread })})` : ""}</span>
             <Link href={allHref} onClick={() => setOpen(false)} className="text-[11px] text-primary-light hover:underline">

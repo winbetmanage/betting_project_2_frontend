@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { useBetSlip } from "./BetSlipProvider";
 import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "./BetReceipt";
+import { SignInPromptDialog } from "@/components/auth/SignInPrompt";
 import { api } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 import { X, ChevronDown, ChevronUp, Ticket, Trash2 } from "lucide-react";
 
@@ -25,6 +26,7 @@ export function BetSlipPanel() {
   const [busy, setBusy] = useState(false);
   const [confirmData, setConfirmData] = useState<ReceiptData | null>(null);
   const [placedData, setPlacedData] = useState<ReceiptData | null>(null);
+  const [promptOpen, setPromptOpen] = useState(false);
   const [maxStake, setMaxStake] = useState<number | null>(null);
   const [maxPayout, setMaxPayout] = useState<number | null>(null);
   const [minStake, setMinStake] = useState(10);
@@ -35,7 +37,9 @@ export function BetSlipPanel() {
     api
       .get<{ data: { maxStake?: number | null; maxPayout?: number | null; minStake?: number | null } }>("/settings/public", tok)
       .then((r) => {
-        setMaxStake(r.data?.maxStake ?? null);
+        // A 0 limit means "no limit" — the ticket shows nothing about max stake.
+        const ms = Number(r.data?.maxStake);
+        setMaxStake(Number.isFinite(ms) && ms > 0 ? ms : null);
         setMaxPayout(r.data?.maxPayout ?? null);
         const m = Number(r.data?.minStake);
         if (Number.isFinite(m) && m >= 1) setMinStake(m);
@@ -47,6 +51,15 @@ export function BetSlipPanel() {
   }, []);
 
   const openConfirm = () => {
+    if (!getAccessToken()) {
+      setPromptOpen(true);
+      return;
+    }
+    const bettingRole = getUser()?.role;
+    if (bettingRole && bettingRole !== "USER") {
+      toast.error(t("needUserAccount"));
+      return;
+    }
     if (Number(slip.stake || 0) < minStake) {
       toast.error(t("minStake", { amount: minStake.toLocaleString("en-US") }));
       return;
@@ -179,6 +192,7 @@ export function BetSlipPanel() {
         busy={busy}
         onConfirm={doPlace}
       />
+      <SignInPromptDialog open={promptOpen} onOpenChange={setPromptOpen} />
       <BetReceiptDialog
         open={!!placedData}
         onOpenChange={(o) => { if (!o) setPlacedData(null); }}
