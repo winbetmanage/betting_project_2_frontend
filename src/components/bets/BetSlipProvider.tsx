@@ -17,6 +17,8 @@ export type SlipLeg = {
 };
 
 export const MAX_SLIP_LEGS = 30;
+/** Max markets (selections) allowed per game on one ticket. */
+export const MAX_MARKETS_PER_GAME = 2;
 
 const STORAGE_KEY = "betSlip.v1";
 
@@ -108,6 +110,11 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         toast.error(t("onePickPerMarket", { market: leg.marketName }));
         return false;
       }
+      const picksForGame = legs.filter((l) => l.gameId === leg.gameId).length;
+      if (picksForGame >= MAX_MARKETS_PER_GAME) {
+        toast.error(t("maxTwoPerGame", { game: leg.gameLabel }));
+        return false;
+      }
       setLegs((prev) => [...prev, leg]);
       return true;
     },
@@ -143,6 +150,12 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       return { error: t("needUserAccount") };
     }
     if (legs.length === 0) return { error: t("addSelectionFirst") };
+    const overLimitGame = legs.reduce<Record<string, { count: number; label: string }>>((acc, l) => {
+      acc[l.gameId] = { count: (acc[l.gameId]?.count ?? 0) + 1, label: l.gameLabel };
+      return acc;
+    }, {});
+    const violating = Object.values(overLimitGame).find((g) => g.count > MAX_MARKETS_PER_GAME);
+    if (violating) return { error: t("maxTwoPerGame", { game: violating.label }) };
     if (Number(stake) <= 0) return { error: t("enterStakePositive") };
     if (Number(stake) < minStake) return { error: t("minStake", { amount: minStake.toLocaleString("en-US") }) };
     setPlacing(true);

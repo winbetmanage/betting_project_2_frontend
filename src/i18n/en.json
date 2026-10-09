@@ -151,6 +151,7 @@
     "confirmReceiptNote": "You'll confirm a receipt before it goes in —",
     "maxLegs": "A bet slip can contain at most {n} selections",
     "onePickPerMarket": "Only one pick per market — \"{market}\" is already on your slip",
+    "maxTwoPerGame": "Maximum 2 markets per game on one ticket — \"{game}\" already has 2 picks. Remove one to add another.",
     "signinToBet": "Please sign in to place a bet",
     "needUserAccount": "You need a user account to bet.",
     "enterStakePositive": "Stake must be positive",
@@ -212,7 +213,7 @@
     "marketsOdds": "Markets & Odds",
     "slipSummary": "{count} selections · odds {odds} · possible return ETB {ret}",
     "remove": "Remove",
-    "tapToAdd": "Tap an odds button to add a pick. Combine markets from the same or different games (one pick per market, max 30) — you'll confirm a receipt before the bet goes in.",
+    "tapToAdd": "Tap an odds button to add a pick. Combine markets from the same or different games (one pick per market, max 2 per game, max 30 per ticket) — you'll confirm a receipt before the bet goes in.",
     "balanceHint": "Your balance: ETB {bal} — responsible gambling.",
     "betSlipTitle": "BET SLIP"
   },
