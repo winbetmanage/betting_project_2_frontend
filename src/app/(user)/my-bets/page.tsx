@@ -23,7 +23,6 @@ import {
   TrendingUp,
   ReceiptText,
 } from "lucide-react";
-import { TeamLogo } from "@/components/TeamLogo";
 import RoleGate from "@/components/auth/RoleGate";
 
 type BetSelection = {
@@ -70,6 +69,30 @@ const statusConfig: Record<string, { key: string; cls: string; icon: React.Compo
   CASHED_OUT: { key: "cashedOut", cls: "bg-sky-500/15 text-sky-300 border-sky-500/20", icon: RefreshCw },
 };
 
+/**
+ * Whole-ticket status derived from legs (not per-game):
+ * - any leg LOST -> ticket LOST (even if stored status is still PENDING)
+ * - all non-void legs WON -> ticket WON
+ * - all legs VOID -> VOID
+ * - otherwise (no lost leg, games still remaining) -> PENDING
+ */
+function ticketStatus(bet: Bet): string {
+  const results = (bet.selections ?? []).map((s) => (s.result ?? "PENDING").toUpperCase());
+  if (results.length === 0) return (bet.status ?? "PENDING").toUpperCase();
+  if (results.some((r) => r === "LOST")) return "LOST";
+  const nonVoid = results.filter((r) => r !== "VOID");
+  if (nonVoid.length > 0 && nonVoid.every((r) => r === "WON")) return "WON";
+  if (results.every((r) => r === "VOID")) return "VOID";
+  if (results.every((r) => r === "CASHED_OUT")) return "CASHED_OUT";
+  return "PENDING";
+}
+
+/** Actual amount the user won on a WON ticket (settled payout wins over potential). */
+function wonAmount(bet: Bet): number {
+  if (bet.settledPayout != null) return Number(bet.settledPayout);
+  return Number(bet.potentialPayout);
+}
+
 function MyBetsPageInner() {
   const t = useTranslations("bets");
   const [token, setToken] = useState<string | null>(null);
@@ -94,7 +117,7 @@ function MyBetsPageInner() {
   }, [token, t]);
 
   const visible = bets
-    .filter((b) => filter === "ALL" || b.status === filter)
+    .filter((b) => filter === "ALL" || ticketStatus(b) === filter)
     .filter((b) => {
       if (!search.trim()) return true;
       const q = search.toLowerCase();
@@ -107,13 +130,13 @@ function MyBetsPageInner() {
 
   const stats = {
     total: bets.length,
-    pending: bets.filter((b) => b.status === "PENDING").length,
-    won: bets.filter((b) => b.status === "WON").length,
-    lost: bets.filter((b) => b.status === "LOST").length,
+    pending: bets.filter((b) => ticketStatus(b) === "PENDING").length,
+    won: bets.filter((b) => ticketStatus(b) === "WON").length,
+    lost: bets.filter((b) => ticketStatus(b) === "LOST").length,
   };
 
   const staked = bets.reduce((sum, b) => sum + Number(b.stake), 0);
-  const returned = bets.filter((b) => b.status === "WON").reduce((sum, b) => sum + Number(b.potentialPayout), 0);
+  const returned = bets.filter((b) => ticketStatus(b) === "WON").reduce((sum, b) => sum + wonAmount(b), 0);
 
   return (
     <div className="space-y-6">
@@ -173,7 +196,7 @@ function MyBetsPageInner() {
         />
       </div>
 
-      {/* Bet list */}
+      {/* Ticket list — one row per ticket, tap to open full ticket */}
       {loading ? (
         <div className="grid place-items-center py-16">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -191,9 +214,10 @@ function MyBetsPageInner() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {visible.map((bet) => {
-            const st = statusConfig[bet.status] ?? statusConfig.PENDING;
+            const derived = ticketStatus(bet);
+            const st = statusConfig[derived] ?? statusConfig.PENDING;
             const StIcon = st.icon;
             const receipt: ReceiptData = {
               id: bet.id,
@@ -208,7 +232,7 @@ function MyBetsPageInner() {
               stake: Number(bet.stake),
               totalOdds: Number(bet.totalOdds),
               potentialPayout: Number(bet.potentialPayout),
-              status: bet.status,
+              status: derived,
               settledPayout: bet.settledPayout != null ? Number(bet.settledPayout) : null,
               placedAt: bet.placedAt,
               settledAt: bet.settledAt,
@@ -220,77 +244,33 @@ function MyBetsPageInner() {
                 tabIndex={0}
                 onClick={() => setReceiptBet(receipt)}
                 onKeyDown={(e) => { if (e.key === "Enter") setReceiptBet(receipt); }}
-                className="cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-primary/40"
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-primary/40"
               >
-                {/* Bet header */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Badge className={`gap-1 border ${st.cls}`}>
-                        <StIcon className="size-3" /> {t(st.key)}
-                      </Badge>
-                      <span className="text-xs text-white/50">
-                        {bet.type === "SINGLE" ? t("single") : t("multipleLegs", { n: bet.selections.length })} · {new Date(bet.placedAt).toLocaleString()}
-                      </span>
+                {/* Left: date + ticket info */}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15">
+                    <Ticket className="size-5 text-primary-light" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white">
+                      {new Date(bet.placedAt).toLocaleString()}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="hidden text-[11px] text-white/40 sm:inline">{t("viewReceipt")}</span>
-                    <ReceiptText className="size-4 text-white/40" />
-                    <span className="font-mono text-[11px] text-white/30">#{bet.id.slice(0, 8)}</span>
-                  </div>
-                </div>
-
-                {/* Selections */}
-                <div className="divide-y divide-white/5">
-                  {bet.selections.map((s) => {
-                    const game = s.selection.market?.game;
-                    const legWon = s.result === "WON";
-                    const legLost = s.result === "LOST";
-                    return (
-                      <div key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div className="min-w-0">
-                          {game ? (
-                            <div className="flex items-center gap-2">
-                              <TeamLogo name={game.homeTeam} className="size-5" />
-                              <span className="truncate text-xs text-white/70">
-                                {game.homeTeam} vs {game.awayTeam}
-                              </span>
-                              <TeamLogo name={game.awayTeam} className="size-5" />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-white/40">{t("gameRemoved")}</span>
-                          )}
-                          <div className="mt-1 flex items-center gap-2 text-[11px]">
-                            <span className="font-medium text-white/90">{s.selection.name}</span>
-                            <span className="text-white/40">• {s.selection.market?.name ?? "Market"}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-sm font-bold ${legWon ? "text-green-400" : legLost ? "text-destructive" : "text-white/80"}`}>
-                            {Number(s.oddsAtPlacement).toFixed(2)}
-                          </div>
-                          <div className="text-[10px] text-white/40">{legWon ? t("wonLeg") : legLost ? t("lostLeg") : t("pendingLeg")}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Bet footer: stake / odds / payout */}
-                <div className="grid grid-cols-3 gap-2 border-t border-white/10 bg-black/20 px-4 py-2.5 text-center">
-                  <div>
-                    <div className="text-[10px] tracking-wide text-white/40">{t("stake")}</div>
-                    <div className="text-sm font-bold">ETB {Number(bet.stake).toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] tracking-wide text-white/40">{t("totalOdds")}</div>
-                    <div className="text-sm font-bold text-primary-light">{Number(bet.totalOdds).toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] tracking-wide text-white/40">{bet.status === "WON" ? t("paidOut") : t("potential")}</div>
-                    <div className={`text-sm font-bold ${bet.status === "WON" ? "text-green-400" : "text-secondary"}`}>
-                      ETB {Number(bet.potentialPayout).toFixed(2)}
+                    <div className="truncate text-xs text-white/50">
+                      {bet.type === "SINGLE" ? t("single") : t("multipleLegs", { n: bet.selections.length })} · <span className="font-mono">#{bet.id.slice(0, 8)}</span>
                     </div>
                   </div>
+                </div>
+                {/* Right: status + money (won only) */}
+                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                  {derived === "WON" && (
+                    <span className="text-sm font-bold text-green-400">
+                      ETB {wonAmount(bet).toFixed(2)}
+                    </span>
+                  )}
+                  <Badge className={`gap-1 border ${st.cls}`}>
+                    <StIcon className="size-3" /> {t(st.key)}
+                  </Badge>
+                  <ReceiptText className="size-4 text-white/40" />
                 </div>
               </div>
             );

@@ -49,7 +49,7 @@ import {
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
-type Leg = { id: string; selectionId: string; selectionName: string; marketName: string; marketType: string; odds: number; result: string };
+type Leg = { id: string; selectionId: string; selectionName: string; marketName: string; marketType: string; gameId: string; odds: number; result: string };
 type SettleBet = {
   id: string;
   type: string;
@@ -139,10 +139,14 @@ export default function BetGameSettlementPage() {
   const [data, setData] = useState<Settlement | null>(null);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [marking, setMarking] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [settlingBetId, setSettlingBetId] = useState<string | null>(null);
   const [settleConfirmOpen, setSettleConfirmOpen] = useState(false);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [submitTargets, setSubmitTargets] = useState<SettleBet[]>([]);
   const [ticketBet, setTicketBet] = useState<ReceiptData | null>(null);
   const [, setTick] = useState(0);
 
@@ -182,6 +186,27 @@ export default function BetGameSettlementPage() {
       toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Settle failed");
     } finally {
       setSettling(false);
+    }
+  };
+
+  const handleSubmitPayments = async () => {
+    const targets = submitTargets;
+    setSubmitConfirmOpen(false);
+    setSubmitting(true);
+    try {
+      const res = await api.post<{ message: string; data: Settlement }>(
+        `/games/${id}/submit-payments`,
+        { betIds: targets.map((b) => b.id) },
+        getAccessToken() ?? token
+      );
+      toast.success(res.message || "Payments submitted");
+      setData(res.data);
+      setSelected({});
+      setSubmitTargets([]);
+    } catch (e) {
+      toast.error(e instanceof ApiError || e instanceof Error ? e.message : "Submit failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -273,6 +298,29 @@ export default function BetGameSettlementPage() {
   const pendingToPay = Math.max(0, data.totals.projectedPayout - data.totals.paidOut);
   const winners = data.bets.filter((b) => b.status === "WON" || b.projectedResult === "WON");
   const hasPaidBets = data.bets.some((b) => b.status === "WON" && b.payoutStatus !== "PENDING");
+  // Payable right now: still PENDING and every leg already decided.
+  const isPayable = (b: SettleBet) =>
+    b.status === "PENDING" && b.legs.length > 0 && b.legs.every((l) => l.result !== "PENDING");
+  // Pending-to-pay: tickets still PENDING whose every leg is already decided.
+  // These are payable right now (Settle payment may have skipped them, e.g. after Calculate).
+  const pendingPayable = data.bets.filter(isPayable);
+  const selectedPayable = pendingPayable.filter((b) => selected[b.id]);
+  // Won on THIS game but the full ticket can't be paid: every leg on this game
+  // is decided with no loss here, yet the ticket is LOST (dead leg elsewhere)
+  // or still PENDING (games elsewhere undecided). Fully-payable pending tickets
+  // are excluded — those belong to Submit payment, not this table.
+  const wonGameLostTicket = data.bets.filter((b) => {
+    if (b.status !== "LOST" && b.status !== "PENDING") return false;
+    const mine = b.legs.filter((l) => l.gameId === id);
+    if (mine.length === 0) return false;
+    if (!mine.every((l) => l.result === "WON" || l.result === "VOID")) return false;
+    if (b.status === "PENDING" && b.legs.every((l) => l.result !== "PENDING")) return false;
+    return true;
+  });
+  const submitTotal = (list: SettleBet[]) =>
+    list
+      .filter((b) => !b.legs.some((l) => l.result === "LOST"))
+      .reduce((a, b) => a + (b.status === "WON" ? (b.settledPayout || b.potentialPayout) : b.projectedPayout), 0);
 
   return (
     <div className="space-y-6">
@@ -373,7 +421,7 @@ export default function BetGameSettlementPage() {
           <CardTitle className="flex items-center gap-2"><Wallet className="size-5 text-primary" /> Settlement</CardTitle>
           <CardDescription>
             {data.result.finished
-              ? "Result is in from football-data. Calculate grades this game's legs and marks lost tickets (other games' legs untouched, no money moved). Settle payment credits the winners and notifies them."
+              ? "Result is in from football-data. Calculate grades this game's legs — including legs on already-lost tickets — and marks newly-dead tickets lost (other games' legs untouched, no money moved). Settle payment credits the winners and notifies them. Submit payment pays pending tickets whose legs are all decided. Mark as paid only flips the payout label — it never moves money."
               : "Settlement unlocks once the match is finished. The 10-minute job refreshes status automatically."}
           </CardDescription>
         </CardHeader>
@@ -403,6 +451,11 @@ export default function BetGameSettlementPage() {
             {data.counts.won > 0 && pendingToPay > 0 && (
               <Button variant="outline" className="gap-1.5 border-sky-500/30 text-sky-600 dark:text-sky-400" disabled={marking} onClick={() => handlePayout("PAID")}>
                 {marking ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Mark payouts as paid
+              </Button>
+            )}
+            {pendingPayable.length > 0 && (
+              <Button onClick={() => { setSubmitTargets(pendingPayable); setSubmitConfirmOpen(true); }} disabled={submitting} className="gap-2 bg-emerald-600 hover:bg-emerald-600/90">
+                {submitting ? <RefreshCw className="size-4 animate-spin" /> : <Wallet className="size-4" />} Submit payment ({pendingPayable.length})
               </Button>
             )}
             {data.counts.won > 0 && !hasPaidBets && pendingToPay > 0 && (
@@ -464,6 +517,39 @@ export default function BetGameSettlementPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Submit-payment confirmation (pending-to-pay tickets) */}
+      <Dialog open={submitConfirmOpen} onOpenChange={(o) => { if (!o) setSubmitConfirmOpen(false); }}>
+        <DialogContent className="sm:max-w-[440px] bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="size-5 text-emerald-600" /> Submit payment?
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              <span className="block space-y-2">
+                <span className="block">
+                  This pays the <span className="font-semibold">{submitTargets.length} selected ticket(s)</span> —
+                  credits winners&apos; wallets, refunds pushes and marks lost tickets. Tickets still waiting on
+                  other games are untouched.
+                </span>
+                <span className="block rounded-lg border border-border bg-muted/40 p-3">
+                  <span className="flex justify-between"><span className="text-muted-foreground">Tickets to submit</span><span className="font-semibold">{submitTargets.length}</span></span>
+                  <span className="flex justify-between"><span className="text-muted-foreground">To pay winners</span><span className="font-bold text-emerald-600 dark:text-emerald-400">ETB {money(submitTotal(submitTargets))}</span></span>
+                </span>
+                <span className="block text-xs text-muted-foreground">This cannot be undone.</span>
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitConfirmOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitPayments} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-600/90">
+              {submitting ? "Paying..." : "Confirm & submit payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Football details — accordion, contracted by default; expands on tap */}
       <Card className="border-border bg-card shadow-sm">
         <CardContent className="pt-0">
@@ -480,7 +566,7 @@ export default function BetGameSettlementPage() {
         </CardContent>
       </Card>
 
-      {/* Winners */}
+      {/* Winners — tick a few and pay only them */}
       {winners.length > 0 && (
         <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
           <CardHeader>
@@ -488,21 +574,118 @@ export default function BetGameSettlementPage() {
             <CardDescription>Total payable to winners: ETB {money(data.totals.projectedPayout)}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {winners.map((b) => (
-              <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-card px-3 py-2 text-sm">
-                <span className="truncate font-medium">{b.user?.name || b.user?.email || "Unknown"}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">stake {money(b.stake)} @ {b.totalOdds.toFixed(2)}</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">+ETB {money(b.status === "WON" ? (b.settledPayout || b.potentialPayout) : b.projectedPayout)}</span>
-                  <Badge variant="outline" className={payoutStyle[b.payoutStatus]}>{b.payoutStatus}</Badge>
-                </div>
+            {pendingPayable.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-card px-3 py-2 text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-emerald-600"
+                    checked={selectedPayable.length > 0 && selectedPayable.length === pendingPayable.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const all: Record<string, boolean> = {};
+                        for (const b of pendingPayable) all[b.id] = true;
+                        setSelected(all);
+                      } else {
+                        setSelected({});
+                      }
+                    }}
+                  />
+                  Select all payable ({pendingPayable.length})
+                </label>
+                <span className="text-xs text-muted-foreground">{selectedPayable.length} selected</span>
+                <Button
+                  size="sm"
+                  disabled={selectedPayable.length === 0 || submitting}
+                  onClick={() => { setSubmitTargets(selectedPayable); setSubmitConfirmOpen(true); }}
+                  className="ml-auto h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-600/90"
+                >
+                  {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" />}
+                  Payout selected ({selectedPayable.length})
+                </Button>
               </div>
-            ))}
+            )}
+            {winners.map((b) => {
+              const payable = isPayable(b);
+              const waiting = b.legs.filter((l) => l.result === "PENDING").length;
+              return (
+                <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-card px-3 py-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {payable ? (
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0 accent-emerald-600"
+                        checked={!!selected[b.id]}
+                        onChange={(e) => setSelected((p) => ({ ...p, [b.id]: e.target.checked }))}
+                        aria-label={`Select ${b.user?.name || b.user?.email || b.id}`}
+                      />
+                    ) : null}
+                    <span className="truncate font-medium">{b.user?.name || b.user?.email || "Unknown"}</span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-muted-foreground">stake {money(b.stake)} @ {b.totalOdds.toFixed(2)}</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">+ETB {money(b.status === "WON" ? (b.settledPayout || b.potentialPayout) : b.projectedPayout)}</span>
+                    <Badge variant="outline" className={payoutStyle[b.payoutStatus]}>{b.payoutStatus}</Badge>
+                    {!payable && b.status === "PENDING" && waiting > 0 && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400" title="Legs on other games are still undecided — cannot pay yet">
+                        waiting on {waiting} leg{waiting === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {!payable && b.status !== "PENDING" && (
+                      <span className="text-[11px] text-muted-foreground">already settled</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
             <Separator className="bg-emerald-500/20" />
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Pending to pay</span>
               <span className="font-semibold text-foreground">ETB {money(pendingToPay)}</span>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Won on this game, but the full ticket can't be paid */}
+      {wonGameLostTicket.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="size-5" /> Winners of this game but lost ticket ({wonGameLostTicket.length})
+            </CardTitle>
+            <CardDescription>
+              Won every leg on {g.homeTeam} vs {g.awayTeam}, but the full ticket is lost or still waiting on other games — cannot pay.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {wonGameLostTicket.map((b) => {
+              const mine = b.legs.filter((l) => l.gameId === id);
+              const wonHere = mine.filter((l) => l.result === "WON").length;
+              const pushedHere = mine.filter((l) => l.result === "VOID").length;
+              const lostElsewhere = b.legs.some((l) => l.gameId !== id && l.result === "LOST");
+              const waitingElsewhere = [...new Set(
+                b.legs.filter((l) => l.gameId !== id && l.result === "PENDING").map((l) => l.gameId)
+              )].length;
+              return (
+                <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-card px-3 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{b.user?.name || b.user?.email || "Unknown"}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      stake {money(b.stake)} @ {b.totalOdds.toFixed(2)} · won {wonHere}{pushedHere > 0 ? ` + ${pushedHere} push` : ""} here
+                      {lostElsewhere
+                        ? " · lost leg on another game"
+                        : waitingElsewhere > 0
+                          ? ` · waiting on ${waitingElsewhere} other game${waitingElsewhere === 1 ? "" : "s"}`
+                          : ""}
+                    </span>
+                  </span>
+                  <Badge variant="outline" className={betStatusStyle[b.status] ?? betStatusStyle.PENDING}>
+                    ticket {b.status}
+                  </Badge>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -554,6 +737,11 @@ export default function BetGameSettlementPage() {
                             <div key={l.id} className="flex items-center gap-1.5 text-xs">
                               <span className="truncate max-w-[150px]">{l.selectionName}</span>
                               <span className="font-mono text-muted-foreground">{l.odds.toFixed(2)}</span>
+                              {l.gameId !== id && (
+                                <Badge variant="outline" className="shrink-0 border-border text-[9px] text-muted-foreground" title="This leg is on a different game">
+                                  other game
+                                </Badge>
+                              )}
                               <Badge
                                 variant="outline"
                                 className={`shrink-0 text-[9px] ${

@@ -6,6 +6,11 @@ import {
   LayoutDashboard,
   Trophy,
   Ticket,
+  Tickets,
+  CircleCheck,
+  CircleX,
+  Clock,
+  ChartColumn,
   ShieldCheck,
   Users,
   Briefcase,
@@ -62,6 +67,14 @@ const manageItems = [
   { key: "staged-games", title: "Staged Games", url: "/admin/fetch-games/staged", icon: Layers },
 ];
 
+const ticketItems = [
+  { key: "tickets", title: "All Tickets", url: "/admin/tickets", icon: Tickets },
+  { key: "tickets-won", title: "Won Tickets", url: "/admin/tickets/won", icon: CircleCheck },
+  { key: "tickets-lost", title: "Lost Tickets", url: "/admin/tickets/lost", icon: CircleX },
+  { key: "tickets-pending", title: "Pending Tickets", url: "/admin/tickets/pending", icon: Clock },
+  { key: "tickets-report", title: "Report", url: "/admin/tickets/report", icon: ChartColumn },
+];
+
 const moneyItems = [
   { key: "wallet", title: "Wallet", url: "/admin/wallet", icon: Wallet },
   { key: "withdrawal-requests", title: "Withdrawal Requests", url: "/admin/users/withdrawal-requests", icon: Banknote },
@@ -80,6 +93,11 @@ const usersItems = [
 function activeKeyFor(pathname: string): string {
   if (pathname === "/admin" || pathname === "/admin/") return "dashboard";
   if (pathname.startsWith("/admin/notifications")) return "notifications";
+  if (pathname.startsWith("/admin/tickets/report")) return "tickets-report";
+  if (pathname.startsWith("/admin/tickets/won")) return "tickets-won";
+  if (pathname.startsWith("/admin/tickets/lost")) return "tickets-lost";
+  if (pathname.startsWith("/admin/tickets/pending")) return "tickets-pending";
+  if (pathname.startsWith("/admin/tickets")) return "tickets";
   if (pathname.startsWith("/admin/games/active")) return "active-games";
   if (pathname.startsWith("/admin/games/ended")) return "ended-games";
   if (/^\/admin\/games\/[^/]+$/.test(pathname)) return "active-games"; // game detail page
@@ -170,6 +188,27 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {manageItems.map((item) => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    render={<Link href={item.url} />}
+                    isActive={activeKey === item.key}
+                    tooltip={item.title}
+                    className={dimItemClass(item.key)}
+                  >
+                    <item.icon className="size-4" />
+                    <span className="flex-1 truncate">{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">TICKETS</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {ticketItems.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     render={<Link href={item.url} />}
