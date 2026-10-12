@@ -28,25 +28,22 @@ export function BetSlipPanel() {
   const [placedData, setPlacedData] = useState<ReceiptData | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
   const [maxStake, setMaxStake] = useState<number | null>(null);
-  const [maxPayout, setMaxPayout] = useState<number | null>(null);
   const [minStake, setMinStake] = useState(10);
 
   useEffect(() => {
     const tok = getAccessToken();
     if (!tok) return;
     api
-      .get<{ data: { maxStake?: number | null; maxPayout?: number | null; minStake?: number | null } }>("/settings/public", tok)
+      .get<{ data: { maxStake?: number | null; minStake?: number | null } }>("/settings/public", tok)
       .then((r) => {
         // A 0 limit means "no limit" — the ticket shows nothing about max stake.
         const ms = Number(r.data?.maxStake);
         setMaxStake(Number.isFinite(ms) && ms > 0 ? ms : null);
-        setMaxPayout(r.data?.maxPayout ?? null);
         const m = Number(r.data?.minStake);
         if (Number.isFinite(m) && m >= 1) setMinStake(m);
       })
       .catch(() => {
         setMaxStake(null);
-        setMaxPayout(null);
       });
   }, []);
 
@@ -66,10 +63,6 @@ export function BetSlipPanel() {
     }
     if (maxStake != null && Number(slip.stake || 0) > maxStake) {
       toast.error(t("maxStake", { amount: maxStake.toLocaleString("en-US") }));
-      return;
-    }
-    if (maxPayout != null && slip.potentialPayout > maxPayout) {
-      toast.error(t("maxPayout", { amount: maxPayout.toLocaleString("en-US") }));
       return;
     }
     setConfirmData(buildReceipt(slip.legs, Number(slip.stake || 0), { existingOddsTotal: slip.totalOdds }));

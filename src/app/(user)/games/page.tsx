@@ -90,20 +90,22 @@ export default function GamesPage() {
             <li key={game.id}>
               <Link
                 href={`/games/${game.id}`}
-                className="group flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-primary/40 hover:bg-white/10"
+                className="group flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-primary/40 hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {/* Line 1 (mobile) / left (desktop): clubs */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="flex items-center gap-2">
-                    <TeamLogo name={game.homeTeam} className="size-8" />
+                    <TeamLogo name={game.homeTeam} className="size-7" />
                     <span className="font-semibold">{game.homeTeam}</span>
                   </span>
                   <span className="text-white/40">{t("vs")}</span>
                   <span className="flex items-center gap-2">
                     <span className="font-semibold">{game.awayTeam}</span>
-                    <TeamLogo name={game.awayTeam} className="size-8" />
+                    <TeamLogo name={game.awayTeam} className="size-7" />
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-white/60">
+                {/* Line 2 (mobile) / right (desktop): time + status */}
+                <div className="flex items-center justify-between gap-3 text-xs text-white/60 sm:justify-end">
                   <span className="hidden items-center gap-1 sm:flex">
                     <Calendar className="size-3.5" />
                     {new Date(game.startTime).toLocaleDateString()}

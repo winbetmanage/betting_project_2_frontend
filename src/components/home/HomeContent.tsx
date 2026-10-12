@@ -8,7 +8,7 @@ import { isAuthenticated, getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
-import { TeamLogo } from "@/components/TeamLogo";
+import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
 import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
@@ -42,7 +42,7 @@ type Sport = {
 };
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
-type Market = { id: string; name: string; type: string; status: string; selections: Selection[] };
+type Market = { id: string; name: string; type: string; status: string; selections: Selection[]; parameters?: { marketKey?: string; line?: number | null } | null };
 type Game = {
   id: string;
   homeTeam: string;
@@ -106,6 +106,45 @@ const topLeagues = [
   { id: "bundesliga", name: "Bundesliga", short: "BL", color: "#d20515", logo: "/assets/team_logos/league-bundesliga.svg" },
   { id: "ligue-1", name: "France Ligue 1", short: "L1", color: "#091c3e", logo: "/assets/team_logos/league-ligue-1.svg" },
 ];
+
+/** Loose club-name comparison (ignores case, accents, and common club suffixes). */
+function teamNameMatches(name: string, team: string): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\b(fc|afc|cf|sc|sk|ac|as|ss|ssc|rc|club|bsc|sv|vfb|tsg)\b/g, "")
+      .replace(/[^a-z0-9 ]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const a = norm(name);
+  const b = norm(team);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+/**
+ * Order a match-winner market's selections as [home, draw, away] so the grid
+ * reads left→right respectively to the two clubs with the draw in the middle.
+ */
+function orderMatchWinner(selections: Selection[], homeTeam: string, awayTeam: string): (Selection | null)[] {
+  let home: Selection | null = null;
+  let away: Selection | null = null;
+  let draw: Selection | null = null;
+  for (const s of selections) {
+    const n = s.name.toLowerCase();
+    if (!draw && (n === "draw" || n === "x" || n.includes("draw"))) { draw = s; continue; }
+    if (!home && teamNameMatches(s.name, homeTeam)) { home = s; continue; }
+    if (!away && teamNameMatches(s.name, awayTeam)) { away = s; continue; }
+  }
+  // Fallbacks: if names were "1"/"X"/"2" or a 2-way market, fill by position.
+  const leftover = selections.filter((s) => s !== home && s !== away && s !== draw);
+  if (!home && leftover.length) home = leftover.shift()!;
+  if (!away && leftover.length) away = leftover.shift()!;
+  if (!draw && leftover.length) draw = leftover.shift()!;
+  return [home, draw, away];
+}
 
 function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const t = useTranslations("home");
@@ -437,9 +476,12 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                           <Clock className="size-3" /> {t("upcoming")}
                         </span>
                       )}
-                      <span className="hidden text-[10px] text-[#64748b] sm:inline">• {game.competition?.name ?? t("friendly")}</span>
                     </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${game.status === "LIVE" ? "bg-red-50 text-red-600" : game.status === "SUSPENDED" ? "bg-amber-50 text-amber-600" : "bg-[#f1f5f9] text-[#64748b]"}`}>
+                    <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[#334155]">
+                      <LeagueLogo league={game.competition?.name} className="size-4 shrink-0" />
+                      <span className="truncate">{game.competition?.name ?? t("friendly")}</span>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${game.status === "LIVE" ? "bg-red-50 text-red-600" : game.status === "SUSPENDED" ? "bg-amber-50 text-amber-600" : "bg-[#f1f5f9] text-[#64748b]"}`}>
                       {game.status}
                     </span>
                   </div>
@@ -481,72 +523,62 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                     </div>
                   </div>
 
-                  {/* Odds grid — H2H (match winner) market only */}
+                  {/* Odds grid — Match Winner only, laid out home · draw · away */}
                   <div>
                       {!isBettingWindowOpen(game.startTime, game.status) ? (
                         <div className="grid place-items-center gap-1 p-6 text-center">
                           <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">{t("bettingClosed")}</span>
                           <span className="text-[11px] text-[#94a3b8]">{t("kickoff15")}</span>
                         </div>
-                      ) : (game.markets ?? []).filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0).length === 0 ? (
-                        <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">{t("bettingUnavailable")}</div>
-                      ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-[#e2e8f0] divide-y sm:divide-y-0">
-                          {(game.markets ?? [])
-                            .filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN")
-                            .slice(0, 1)
-                            .map((market) => (
-                              <div key={market.id} className="contents">
-                                <div className="col-span-3 sm:col-span-6 grid grid-cols-3 sm:grid-cols-6 bg-[#f8fafc] text-[10px] font-medium tracking-wider text-[#64748b]">
-                                  <div className="px-2 py-1 text-center">1</div>
-                                  <div className="px-2 py-1 text-center">X</div>
-                                  <div className="px-2 py-1 text-center">2</div>
-                                  <div className="px-2 py-1 text-center hidden sm:block">1X</div>
-                                  <div className="px-2 py-1 text-center hidden sm:block">12</div>
-                                  <div className="px-2 py-1 text-center hidden sm:block">X2</div>
-                                </div>
-                                {market.selections.slice(0, 6).map((sel) => {
-                                  const isSelected = slip.has(sel.id);
-                                  return (
-                                    <button
-                                      key={sel.id}
-                                      onClick={() =>
-                                        slip.toggle({
-                                          selectionId: sel.id,
-                                          gameId: game.id,
-                                          gameLabel: `${game.homeTeam} vs ${game.awayTeam}`,
-                                          marketId: market.id,
-                                          marketName: market.name,
-                                          selectionName: sel.name,
-                                          odds: Number(sel.odds),
-                                        })
-                                      }
-                                      className={`px-1 py-3 text-center transition sm:p-2 ${
-                                        isSelected
-                                          ? "bg-[#3b82f6] text-white"
-                                          : "bg-white hover:bg-[#eff6ff] text-[#0f172a]"
-                                      }`}
-                                    >
-                                      <div className="text-sm font-bold sm:text-xs">{Number(sel.odds).toFixed(2)}</div>
-                                      <div className={`text-[10px] truncate ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>{sel.name}</div>
-                                    </button>
-                                  );
-                                })}
-                                {/* Fill missing cells */}
-                                {Array.from({ length: Math.max(0, 6 - market.selections.length) }).map((_, i) => (
-                                  <div key={i} className="bg-[#f8fafc] p-2 text-center text-xs text-[#cbd5e1]">
-                                    -
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                      {game.markets.filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN").length > 1 && (
-                        <div className="border-t border-[#e2e8f0] bg-[#f8fafc] px-3 py-1 text-right">
-                          <span className="text-[11px] text-[#64748b]">{t("moreH2H", { n: game.markets.filter((m) => m.type === "MATCH_WINNER" && m.status === "OPEN").length - 1 })}</span>
-                        </div>
-                      )}
+                      ) : (() => {
+                        const mw = (game.markets ?? []).find((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0);
+                        if (!mw) return <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">{t("bettingUnavailable")}</div>;
+                        const [home, draw, away] = orderMatchWinner(mw.selections, game.homeTeam, game.awayTeam);
+                        const cells: { sel: Selection | null; label: string }[] = [
+                          { sel: home, label: game.homeTeam },
+                          { sel: draw, label: "Draw" },
+                          { sel: away, label: game.awayTeam },
+                        ];
+                        return (
+                          <div>
+                            <div className="grid grid-cols-3 bg-[#f8fafc] text-[10px] font-medium tracking-wider text-[#64748b]">
+                              <div className="px-2 py-1 text-center">1</div>
+                              <div className="px-2 py-1 text-center">X</div>
+                              <div className="px-2 py-1 text-center">2</div>
+                            </div>
+                            <div className="grid grid-cols-3 divide-x divide-[#e2e8f0]">
+                              {cells.map(({ sel, label }, i) => {
+                                if (!sel) {
+                                  return <div key={i} className="bg-[#f8fafc] p-3 text-center text-xs text-[#cbd5e1]">—</div>;
+                                }
+                                const isSelected = slip.has(sel.id);
+                                return (
+                                  <button
+                                    key={sel.id}
+                                    onClick={() =>
+                                      slip.toggle({
+                                        selectionId: sel.id,
+                                        gameId: game.id,
+                                        gameLabel: `${game.homeTeam} vs ${game.awayTeam}`,
+                                        marketId: mw.id,
+                                        marketName: mw.name,
+                                        selectionName: sel.name,
+                                        odds: Number(sel.odds),
+                                      })
+                                    }
+                                    className={`px-2 py-3 text-center transition ${
+                                      isSelected ? "bg-[#3b82f6] text-white" : "bg-white hover:bg-[#eff6ff] text-[#0f172a]"
+                                    }`}
+                                  >
+                                    <div className="text-sm font-bold">{Number(sel.odds).toFixed(2)}</div>
+                                    <div className={`truncate text-[10px] ${isSelected ? "text-white/80" : "text-[#64748b]"}`}>{label}</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                   </div>
 
                   {/* Card footer: kickoff time + Details */}
