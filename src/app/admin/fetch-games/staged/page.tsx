@@ -61,6 +61,8 @@ import {
   CheckSquare,
   Square,
   Trash2,
+  Wand2,
+  Save,
 } from "lucide-react";
 
 type StagedStatus = "PENDING" | "MATCH_NOT_FOUND" | "CONFIRMED" | "REJECTED";
@@ -131,7 +133,40 @@ type FdFindResult = {
   dayFixtures?: FdMatchSummary[];
 };
 
+type BulkLinkOutcome = "linked" | "already_linked" | "linked_conflict" | "not_found" | "teams_not_mapped" | "in_games" | "error";
+type BulkLinkItem = {
+  id: string;
+  home: string;
+  away: string;
+  competition: string;
+  day: string;
+  outcome: BulkLinkOutcome;
+  matchId: number | null;
+  note: string;
+};
+type BulkLinkResponse = { message: string; data: { results: BulkLinkItem[]; summary: Record<string, number>; total: number } };
+
+type BulkConfirmOutcome = "added" | "skipped" | "error";
+type BulkConfirmItem = { id: string; home: string; away: string; outcome: BulkConfirmOutcome; gameId: string | null; note: string };
+type BulkConfirmResponse = { message: string; data: { results: BulkConfirmItem[]; summary: Record<string, number>; total: number } };
+
 const SPINNER = "/assets/custom/infinite-spinner.svg";
+
+const BULK_LINK_META: Record<BulkLinkOutcome, { label: string; cls: string }> = {
+  linked: { label: "Linked", cls: "bg-secondary/15 text-secondary border-secondary/30" },
+  already_linked: { label: "Already linked", cls: "bg-primary/15 text-primary border-primary/30" },
+  linked_conflict: { label: "Match already used", cls: "bg-amber-500/15 text-amber-500 border-amber-500/30" },
+  not_found: { label: "Not found", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+  teams_not_mapped: { label: "Teams not mapped", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+  in_games: { label: "In games", cls: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30" },
+  error: { label: "Error", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+};
+
+const BULK_CONFIRM_META: Record<BulkConfirmOutcome, { label: string; cls: string }> = {
+  added: { label: "Added", cls: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30" },
+  skipped: { label: "Skipped", cls: "bg-muted text-muted-foreground border-border" },
+  error: { label: "Error", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+};
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-500/15 text-amber-500 border-amber-500/30",
@@ -210,6 +245,14 @@ export default function StagedGamesPage() {
   // Clear finished
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+
+  // Bulk auto find & link (no selection required)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkLinkResponse["data"] | null>(null);
+  const [bulkConfirming, setBulkConfirming] = useState(false);
+  const [bulkConfirmResult, setBulkConfirmResult] = useState<BulkConfirmResponse["data"] | null>(null);
+  const bulkLinkedIds = (bulkResult?.results ?? []).filter((r) => r.outcome === "linked").map((r) => r.id);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -380,6 +423,47 @@ export default function StagedGamesPage() {
     runFind(row.id);
   };
 
+  // Auto find & link. Uses the selected rows when any are ticked; otherwise it
+  // targets every staged game that still needs a football-data link. All rows
+  // are returned in one page so they can be approved together.
+  const runBulkFindLink = async () => {
+    const t = getAccessToken() ?? token;
+    const ids = Array.from(selectedIds).filter((id) => selectableIds.includes(id));
+    setBulkOpen(true);
+    setBulkRunning(true);
+    setBulkResult(null);
+    setBulkConfirmResult(null);
+    setSelectedIds(new Set());
+    try {
+      const res = await api.post<BulkLinkResponse>("/fetch-games/staged/bulk-find-link", ids.length > 0 ? { ids } : {}, t);
+      setBulkResult(res.data);
+      const s = res.data.summary ?? {};
+      toast.success(`Linked ${s.linked ?? 0} of ${res.data.total} game(s) to football-data`);
+    } catch (e) {
+      toast.error(errMessage(e, "Auto find & link failed"));
+    } finally {
+      setBulkRunning(false);
+      await load(page, search, status, t);
+    }
+  };
+
+  const runBulkConfirm = async () => {
+    if (bulkLinkedIds.length === 0) return;
+    const t = getAccessToken() ?? token;
+    setBulkConfirming(true);
+    try {
+      const res = await api.post<BulkConfirmResponse>("/fetch-games/staged/bulk-confirm", { ids: bulkLinkedIds }, t);
+      setBulkConfirmResult(res.data);
+      const s = res.data.summary ?? {};
+      toast.success(res.message || `Added ${s.added ?? 0} game(s)`);
+    } catch (e) {
+      toast.error(errMessage(e, "Approve all failed"));
+    } finally {
+      setBulkConfirming(false);
+      await load(page, search, status, t);
+    }
+  };
+
   const handleLink = async (matchId: number) => {
     if (!fdId) return;
     const t = getAccessToken() ?? token;
@@ -492,7 +576,7 @@ export default function StagedGamesPage() {
           </CardTitle>
           <CardDescription>
             Re-reads kickoff times and odds data from The Odds API and scores/statuses from football-data.org for every
-            staged row. Nothing is added or deleted — add new games from the Premier League and Champions League pages.
+            staged row. Nothing is added or deleted — add new games from the league pages.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -571,6 +655,16 @@ export default function StagedGamesPage() {
             )}
             <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setClearOpen(true)}>
               <Trash2 className="size-4" /> Clear finished
+            </Button>
+            <Button
+              size="sm"
+              className="h-9 gap-1.5 bg-secondary hover:bg-secondary/90"
+              onClick={runBulkFindLink}
+              disabled={bulkRunning}
+              title="Automatically find & link football-data fixtures and review them all in one page"
+            >
+              {bulkRunning ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+              {selectedCount > 0 ? `Auto find & link (${selectedCount})` : "Auto find & link"}
             </Button>
           </div>
         </CardHeader>
@@ -956,6 +1050,116 @@ export default function StagedGamesPage() {
               </DialogFooter>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto find & link results (all staged games in one page) */}
+      <Dialog open={bulkOpen} onOpenChange={(o) => { if (!o && !bulkRunning && !bulkConfirming) setBulkOpen(false); }}>
+        <DialogContent className="sm:max-w-[760px] bg-card border-white/10 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="size-5 text-secondary" /> Auto find &amp; link
+            </DialogTitle>
+            <DialogDescription>
+              Football-data is matched by UTC day + teams (via the Team table) for every staged game that still needs a
+              link. Review the list below, then approve them all at once.
+            </DialogDescription>
+          </DialogHeader>
+
+          {bulkRunning ? (
+            <div className="grid place-items-center gap-2 py-12">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={SPINNER} alt="Working" className="size-10" />
+              <p className="text-xs text-muted-foreground">Finding football-data fixtures for all staged games...</p>
+            </div>
+          ) : !bulkResult ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No results.</div>
+          ) : (
+            <div className="space-y-4 py-1">
+              {/* Summary */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={BULK_LINK_META.linked.cls}>{bulkResult.summary.linked ?? 0} linked</Badge>
+                <Badge variant="outline" className={BULK_LINK_META.already_linked.cls}>{bulkResult.summary.already_linked ?? 0} already linked</Badge>
+                {bulkResult.summary.in_games ? <Badge variant="outline" className={BULK_LINK_META.in_games.cls}>{bulkResult.summary.in_games} in games</Badge> : null}
+                {bulkResult.summary.linked_conflict ? <Badge variant="outline" className={BULK_LINK_META.linked_conflict.cls}>{bulkResult.summary.linked_conflict} conflict</Badge> : null}
+                {bulkResult.summary.not_found ? <Badge variant="outline" className={BULK_LINK_META.not_found.cls}>{bulkResult.summary.not_found} not found</Badge> : null}
+                {bulkResult.summary.teams_not_mapped ? <Badge variant="outline" className={BULK_LINK_META.teams_not_mapped.cls}>{bulkResult.summary.teams_not_mapped} unmapped</Badge> : null}
+                {bulkResult.summary.error ? <Badge variant="outline" className={BULK_LINK_META.error.cls}>{bulkResult.summary.error} error</Badge> : null}
+              </div>
+
+              {bulkConfirmResult && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
+                  <div className="flex items-center gap-2 font-semibold text-emerald-500">
+                    <CheckCircle2 className="size-4" /> Approved {bulkConfirmResult.summary.added ?? 0} to games
+                    {bulkConfirmResult.summary.skipped ? ` · ${bulkConfirmResult.summary.skipped} skipped` : ""}
+                    {bulkConfirmResult.summary.error ? ` · ${bulkConfirmResult.summary.error} failed` : ""}
+                  </div>
+                </div>
+              )}
+
+              {/* One-page result list */}
+              <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-white/10">
+                <Table className="admin-cards">
+                  <TableHeader className="bg-primary">
+                    <TableRow className="hover:bg-primary border-primary">
+                      <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
+                      <TableHead className="text-white text-xs tracking-widest">DAY</TableHead>
+                      <TableHead className="text-white text-xs tracking-widest">RESULT</TableHead>
+                      <TableHead className="text-white text-xs tracking-widest">NOTE</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bulkResult.results.map((r) => {
+                      const meta = BULK_LINK_META[r.outcome];
+                      const confirmItem = bulkConfirmResult?.results.find((c) => c.id === r.id);
+                      return (
+                        <TableRow key={r.id} className="border-border hover:bg-muted/50">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <TeamLogo name={r.home} className="size-5 shrink-0" />
+                              <span className="text-sm font-medium">{r.home}</span>
+                              <span className="text-muted-foreground">vs</span>
+                              <span className="text-sm font-medium">{r.away}</span>
+                              <TeamLogo name={r.away} className="size-5 shrink-0" />
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-muted-foreground">{r.competition}</div>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{r.day}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-start gap-1">
+                              <Badge variant="outline" className={meta.cls}>{meta.label}</Badge>
+                              {r.matchId != null && <span className="font-mono text-[10px] text-muted-foreground">FD #{r.matchId}</span>}
+                              {confirmItem && (
+                                <Badge variant="outline" className={BULK_CONFIRM_META[confirmItem.outcome].cls}>
+                                  {BULK_CONFIRM_META[confirmItem.outcome].label}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{r.note}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <DialogFooter className="gap-2 sm:justify-between">
+                <Button variant="outline" className="border-white/10" onClick={() => setBulkOpen(false)} disabled={bulkRunning || bulkConfirming}>
+                  Close
+                </Button>
+                <Button
+                  className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
+                  disabled={bulkConfirming || bulkLinkedIds.length === 0}
+                  onClick={runBulkConfirm}
+                  title="Add every newly-linked game to the games table in one go"
+                >
+                  {bulkConfirming ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  {bulkConfirming ? "Approving..." : `Approve all · add ${bulkLinkedIds.length} to games`}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

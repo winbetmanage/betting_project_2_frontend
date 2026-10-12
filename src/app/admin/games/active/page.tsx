@@ -17,8 +17,13 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
-import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle, Flag, RefreshCw } from "lucide-react";
+import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle, Flag, RefreshCw, CheckSquare, SlidersHorizontal, Download, Wand2 } from "lucide-react";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
+
+type BulkFetchItem = { gameId: string; label: string; ok: boolean; stored?: number; attempts: number; error?: string };
+type BulkFillItem = { gameId: string; label: string; marketsFilled: number; marketsFailed: number; skipped: number; failures: { marketKey: string; point: number | null; message: string }[]; error?: string };
+type BulkReport = { action: "fetch" | "fill"; total: number; succeeded: number; failed: number; items: (BulkFetchItem | BulkFillItem)[] };
+type MarketType = { key: string; label: string; scoreRelated: boolean };
 
 type GameScoreLite = {
   footballDataMatchId: number | null;
@@ -45,6 +50,7 @@ type Game = {
   hasFootballData?: boolean;
   footballDataMatchId?: number | null;
   apiSportKey?: string | null;
+  marketCount?: number;
 };
 
 export default function ActiveGamesPage() {
@@ -66,6 +72,16 @@ export default function ActiveGamesPage() {
   const [now, setNow] = useState<Date>(() => new Date());
   const [allGames, setAllGames] = useState<Game[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Advanced bulk tools
+  const [advanced, setAdvanced] = useState(false);
+  const [advSelected, setAdvSelected] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState<false | "fetch" | "fill">(false);
+  const [fillDialogOpen, setFillDialogOpen] = useState(false);
+  const [scoreOnly, setScoreOnly] = useState(true);
+  const [excludeKeys, setExcludeKeys] = useState<Set<string>>(new Set());
+  const [marketTypes, setMarketTypes] = useState<MarketType[]>([]);
+  const [report, setReport] = useState<{ title: string; report: BulkReport } | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -165,6 +181,120 @@ export default function ActiveGamesPage() {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [page, limit, search, games]);
+
+  // Advanced selection is independent of the delete selection and survives page changes.
+  useEffect(() => {
+    if (!advanced) {
+      setAdvSelected(new Set());
+      return;
+    }
+    const t = getAccessToken() ?? token;
+    api.get<{ data: MarketType[] }>("/games/market-types", t).then((r) => setMarketTypes(r.data ?? [])).catch(() => setMarketTypes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanced]);
+
+  const allVisibleIds = games.map((g) => g.id);
+  const allVisibleAdvSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => advSelected.has(id));
+  const advCount = advSelected.size;
+
+  const toggleAdvRow = (id: string) => {
+    setAdvSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAdvSelectAll = () => {
+    setAdvSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleAdvSelected) allVisibleIds.forEach((id) => next.delete(id));
+      else allVisibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const runBulkFetch = async () => {
+    const ids = Array.from(advSelected);
+    if (ids.length === 0) return;
+    const t = getAccessToken() ?? token;
+    setBulkRunning("fetch");
+    try {
+      const report = await runChunked<BulkFetchItem>("fetch", ids, t, (chunk) =>
+        api.post<{ message: string; data: BulkReport }>("/games/bulk-fetch-odds", { ids: chunk }, t).then((r) => r.data)
+      );
+      setReport({ title: "Auto fetch markets", report });
+      toast.success(`Fetched markets for ${report.succeeded}/${report.total} game(s)`);
+      await load(page, search);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Bulk fetch failed");
+    } finally {
+      setBulkRunning(false);
+    }
+  };
+
+  const runBulkAutoFill = async () => {
+    const ids = Array.from(advSelected);
+    if (ids.length === 0) return;
+    const t = getAccessToken() ?? token;
+    setFillDialogOpen(false);
+    setBulkRunning("fill");
+    try {
+      const report = await runChunked<BulkFillItem>("fill", ids, t, (chunk) =>
+        api
+          .post<{ message: string; data: BulkReport }>("/games/bulk-auto-fill", { ids: chunk, scoreOnly, excludeMarketKeys: Array.from(excludeKeys) }, t)
+          .then((r) => r.data)
+      );
+      setReport({ title: `Auto fill markets (${scoreOnly ? "scores only" : "all markets"})`, report });
+      const filled = report.items.filter((i) => (i as BulkFillItem).marketsFilled > 0).length;
+      toast.success(`Auto-filled markets on ${filled}/${report.total} game(s)`);
+      await load(page, search);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Bulk auto fill failed");
+    } finally {
+      setBulkRunning(false);
+    }
+  };
+
+  // Send selected games to a bulk endpoint in small chunks so no single request
+  // is large enough to time out; aggregate every chunk's items into one report.
+  const runChunked = async <T,>(
+    action: "fetch" | "fill",
+    ids: string[],
+    t: string | null,
+    call: (chunk: string[]) => Promise<BulkReport>
+  ): Promise<BulkReport> => {
+    const CHUNK = 4;
+    const items: T[] = [];
+    let succeeded = 0;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      try {
+        const rep = await call(chunk);
+        items.push(...(rep.items as T[]));
+        succeeded += rep.succeeded;
+        failed += rep.failed;
+      } catch {
+        // Whole chunk failed (network/proxy): record each game as failed and continue.
+        for (const id of chunk) {
+          items.push({ gameId: id, label: id.slice(0, 8), error: "Request failed", marketsFilled: 0, marketsFailed: 0, skipped: 0, failures: [], attempts: 2, ok: false } as unknown as T);
+          failed++;
+        }
+      }
+    }
+    return { action, total: items.length, succeeded, failed, items: items as unknown as BulkReport["items"] };
+  };
+
+  const toggleExclude = (key: string) => {
+    setExcludeKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const deletableIds = games.filter((g) => !g.isPublished).map((g) => g.id);
   const allDeletableSelected = deletableIds.length > 0 && deletableIds.every((id) => selectedIds.has(id));
@@ -294,15 +424,38 @@ export default function ActiveGamesPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {selectedCount > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 className="size-4" /> Delete ({selectedCount})
-                </Button>
+              <Button
+                variant={advanced ? "default" : "outline"}
+                size="sm"
+                className={`h-9 gap-1.5 ${advanced ? "bg-secondary hover:bg-secondary/90" : "border-secondary/30 text-secondary hover:bg-secondary/10"}`}
+                onClick={() => setAdvanced((a) => !a)}
+                title="Advanced: select multiple games and auto fetch / auto fill their markets"
+              >
+                <SlidersHorizontal className="size-4" /> {advanced ? "Advanced ON" : "Advanced"}
+              </Button>
+              {!advanced && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={toggleSelectAll}
+                    disabled={deletableIds.length === 0}
+                    title="Select or clear all unpublished games on this page"
+                  >
+                    <CheckSquare className="size-4" /> {allDeletableSelected ? "Unselect all" : `Select all (${deletableIds.length})`}
+                  </Button>
+                  {selectedCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      <Trash2 className="size-4" /> Delete ({selectedCount})
+                    </Button>
+                  )}
+                </>
               )}
               <Button
                 variant="outline"
@@ -327,6 +480,46 @@ export default function ActiveGamesPage() {
               </Select>
             </div>
           </div>
+
+          {/* Advanced action bar */}
+          {advanced && (
+            <div className="mt-3 flex flex-col gap-2 rounded-lg border border-secondary/30 bg-secondary/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline" className="border-secondary/40 text-secondary">{advCount} selected</Badge>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleAdvSelectAll} disabled={allVisibleIds.length === 0}>
+                  {allVisibleAdvSelected ? "Unselect page" : "Select page"}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdvSelected(new Set())} disabled={advCount === 0}>
+                  Clear
+                </Button>
+                {excludeKeys.size > 0 && (
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-600">{excludeKeys.size} excluded</Badge>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 bg-primary hover:bg-primary/90"
+                  onClick={runBulkFetch}
+                  disabled={advCount === 0 || !!bulkRunning}
+                  title="Fetch all available markets for the selected games"
+                >
+                  {bulkRunning === "fetch" ? <RefreshCw className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  {bulkRunning === "fetch" ? "Fetching..." : `Auto fetch (${advCount})`}
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 bg-secondary hover:bg-secondary/90"
+                  onClick={() => setFillDialogOpen(true)}
+                  disabled={advCount === 0 || !!bulkRunning}
+                  title="Auto-fill markets for the selected games (choose scores only / all, and exclude market types)"
+                >
+                  {bulkRunning === "fill" ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+                  {bulkRunning === "fill" ? "Filling..." : `Auto fill (${advCount})`}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -351,14 +544,16 @@ export default function ActiveGamesPage() {
                       <TableHead className="text-white text-xs tracking-widest w-10">
                         <input
                           type="checkbox"
-                          checked={allDeletableSelected}
+                          checked={advanced ? allVisibleAdvSelected : allDeletableSelected}
                           ref={(el) => {
-                            if (el) el.indeterminate = selectedCount > 0 && !allDeletableSelected;
+                            if (el) el.indeterminate = advanced
+                              ? advCount > 0 && !allVisibleAdvSelected
+                              : selectedCount > 0 && !allDeletableSelected;
                           }}
-                          onChange={toggleSelectAll}
-                          disabled={deletableIds.length === 0}
+                          onChange={advanced ? toggleAdvSelectAll : toggleSelectAll}
+                          disabled={advanced ? allVisibleIds.length === 0 : deletableIds.length === 0}
                           className="size-4 cursor-pointer accent-white disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label="Select all deletable games"
+                          aria-label={advanced ? "Select all games" : "Select all deletable games"}
                         />
                       </TableHead>
                       <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
@@ -373,9 +568,19 @@ export default function ActiveGamesPage() {
                   </TableHeader>
                   <TableBody>
                     {games.map((g) => (
-                      <TableRow key={g.id} className={`border-border hover:bg-muted/50 ${selectedIds.has(g.id) ? "bg-destructive/5" : ""}`}>
+                      <TableRow key={g.id} className={`border-border hover:bg-muted/50 ${advanced ? (advSelected.has(g.id) ? "bg-secondary/5" : "") : selectedIds.has(g.id) ? "bg-destructive/5" : ""}`}>
                         <TableCell>
-                          {g.isPublished ? (
+                          {advanced ? (
+                            <div className="flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={advSelected.has(g.id)}
+                                onChange={() => toggleAdvRow(g.id)}
+                                className="size-4 cursor-pointer accent-secondary"
+                                aria-label={`Select ${g.homeTeam} vs ${g.awayTeam}`}
+                              />
+                            </div>
+                          ) : g.isPublished ? (
                             <span title="Published games cannot be removed" className="flex justify-center">
                               <svg className="size-4 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -431,10 +636,11 @@ export default function ActiveGamesPage() {
                             type="button"
                             onClick={() => setApiGame(g)}
                             className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 transition hover:bg-muted/60"
-                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} — click for details`}
+                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} • ${g.marketCount ?? 0} market(s) — click for details`}
                           >
                             {g.hasOddsApi ? <CheckCircle2 className="size-4 text-secondary" /> : <XCircle className="size-4 text-muted-foreground/40" />}
                             {g.hasFootballData ? <CheckCircle2 className="size-4 text-emerald-500" /> : <XCircle className="size-4 text-muted-foreground/40" />}
+                            <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">({g.marketCount ?? 0})</span>
                           </button>
                         </TableCell>
                         <TableCell>
@@ -460,11 +666,19 @@ export default function ActiveGamesPage() {
                   const s = g.score;
                   const showScore = s && (g.status === "LIVE" || g.status === "FINISHED" || g.status === "SUSPENDED") && s.homeFT != null && s.awayFT != null;
                   return (
-                    <div key={g.id} className={`rounded-xl border p-3 ${selectedIds.has(g.id) ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
+                    <div key={g.id} className={`rounded-xl border p-3 ${advanced ? (advSelected.has(g.id) ? "border-secondary/40 bg-secondary/5" : "border-border bg-muted/30") : selectedIds.has(g.id) ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30"}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            {g.isPublished ? (
+                            {advanced ? (
+                              <input
+                                type="checkbox"
+                                checked={advSelected.has(g.id)}
+                                onChange={() => toggleAdvRow(g.id)}
+                                className="size-4 shrink-0 cursor-pointer accent-secondary"
+                                aria-label={`Select ${g.homeTeam} vs ${g.awayTeam}`}
+                              />
+                            ) : g.isPublished ? (
                               <span className="flex size-4 shrink-0 items-center justify-center">
                                 <svg className="size-4 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -515,11 +729,12 @@ export default function ActiveGamesPage() {
                             type="button"
                             onClick={() => setApiGame(g)}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-1.5 py-1 transition hover:bg-muted/60"
-                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} — tap for details`}
+                            title={`Odds API: ${g.hasOddsApi ? "connected" : "none"} • Football-Data: ${g.hasFootballData ? "connected" : "none"} • ${g.marketCount ?? 0} market(s) — tap for details`}
                           >
                             <span className="text-[10px] font-medium text-muted-foreground">APIS</span>
                             {g.hasOddsApi ? <CheckCircle2 className="size-3.5 text-secondary" /> : <XCircle className="size-3.5 text-muted-foreground/40" />}
                             {g.hasFootballData ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : <XCircle className="size-3.5 text-muted-foreground/40" />}
+                            <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">({g.marketCount ?? 0})</span>
                           </button>
                         </div>
                         <div className="flex items-center gap-3">
@@ -638,6 +853,138 @@ export default function ActiveGamesPage() {
             <DialogDescription className="text-xs">Data from both external sources for this game. “Fetch all-market odds” pulls every market from The Odds API and saves it to this game&apos;s JSON file.</DialogDescription>
           </DialogHeader>
           {apiGame && <GameApiInfo gameId={apiGame.id} showFetch onFetched={() => load(page, search)} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-fill config: scores/all + exclude market types */}
+      <Dialog open={fillDialogOpen} onOpenChange={(o) => { if (!o && bulkRunning !== "fill") setFillDialogOpen(false); }}>
+        <DialogContent className="sm:max-w-[560px] bg-card max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="size-5 text-secondary" /> Auto fill {advCount} game(s)
+            </DialogTitle>
+            <DialogDescription>
+              Picks the first bookmaker for every eligible market and records it. Each market is retried twice; if it
+              still fails it is skipped and shown in the report.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Scores only / all */}
+            <div>
+              <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground">MARKETS TO INCLUDE</div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant={scoreOnly ? "default" : "outline"} onClick={() => setScoreOnly(true)} className={scoreOnly ? "bg-secondary hover:bg-secondary/90" : ""}>
+                  Scores only
+                </Button>
+                <Button type="button" size="sm" variant={!scoreOnly ? "default" : "outline"} onClick={() => setScoreOnly(false)} className={!scoreOnly ? "bg-secondary hover:bg-secondary/90" : ""}>
+                  All markets
+                </Button>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {scoreOnly ? "Corners & cards markets are skipped." : "Includes corners & cards markets."}
+              </p>
+            </div>
+
+            {/* Exclude picker */}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-semibold tracking-wide text-muted-foreground">EXCLUDE MARKET TYPES ({excludeKeys.size})</span>
+                {excludeKeys.size > 0 && (
+                  <button type="button" onClick={() => setExcludeKeys(new Set())} className="text-[11px] text-primary hover:underline">
+                    Clear
+                  </button>
+                )}
+              </div>
+              {marketTypes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No market types loaded.</p>
+              ) : (
+                <div className="grid max-h-56 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-border p-2 sm:grid-cols-2">
+                  {marketTypes.map((mt) => {
+                    const disabledByScore = scoreOnly && !mt.scoreRelated;
+                    const checked = excludeKeys.has(mt.key);
+                    return (
+                      <label key={mt.key} className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition hover:bg-muted/60 ${disabledByScore ? "opacity-40" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={disabledByScore}
+                          onChange={() => toggleExclude(mt.key)}
+                          className="size-3.5 accent-destructive"
+                        />
+                        <span className="truncate">{mt.label}</span>
+                        {disabledByScore && <span className="ml-auto text-[10px] text-muted-foreground">skipped</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setFillDialogOpen(false)} disabled={bulkRunning === "fill"}>
+              Cancel
+            </Button>
+            <Button onClick={runBulkAutoFill} disabled={bulkRunning === "fill" || advCount === 0} className="bg-secondary hover:bg-secondary/90">
+              {bulkRunning === "fill" ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+              {bulkRunning === "fill" ? "Filling..." : `Auto fill ${advCount} game(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk report */}
+      <Dialog open={!!report} onOpenChange={(o) => !o && setReport(null)}>
+        <DialogContent className="sm:max-w-[620px] bg-card max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="size-5 text-secondary" /> {report?.title}
+            </DialogTitle>
+            <DialogDescription>
+              {report && `Processed ${report.report.total} game(s) — ${report.report.succeeded} clean, ${report.report.failed} with issues.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto py-1">
+            {report?.report.items.map((it) => {
+              const isFill = report.report.action === "fill";
+              const f = it as BulkFillItem;
+              const ok = isFill ? !f.error && f.marketsFailed === 0 : (it as BulkFetchItem).ok;
+              return (
+                <div key={it.gameId} className={`rounded-lg border p-2.5 text-sm ${ok ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {ok ? <CheckCircle2 className="size-4 text-emerald-500" /> : <AlertTriangle className="size-4 text-amber-500" />}
+                      {it.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {isFill
+                        ? `${f.marketsFilled} filled · ${f.marketsFailed} failed · ${f.skipped} skipped`
+                        : (it as BulkFetchItem).ok
+                          ? `${(it as BulkFetchItem).stored ?? 0} bookmakers (${(it as BulkFetchItem).attempts} attempt${(it as BulkFetchItem).attempts === 1 ? "" : "s"})`
+                          : `failed after ${(it as BulkFetchItem).attempts} attempts`}
+                    </span>
+                  </div>
+                  {(f.error || (it as BulkFetchItem).error) && (
+                    <div className="mt-1 text-[11px] text-destructive">{f.error ?? (it as BulkFetchItem).error}</div>
+                  )}
+                  {isFill && f.failures.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {f.failures.slice(0, 6).map((ff, i) => (
+                        <div key={i} className="text-[11px] text-amber-700 dark:text-amber-400">
+                          • {ff.marketKey}{ff.point != null ? ` (line ${ff.point})` : ""}: {ff.message}
+                        </div>
+                      ))}
+                      {f.failures.length > 6 && <div className="text-[11px] text-muted-foreground">+{f.failures.length - 6} more…</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setReport(null)} className="bg-primary">Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

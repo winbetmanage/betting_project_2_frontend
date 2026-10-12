@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { TeamLogo } from "@/components/TeamLogo";
+import { LeagueFilterBar, competitionInCategory, LEAGUE_CATEGORIES } from "@/components/games/LeagueFilter";
 import { ChevronRight, Clock, Calendar, Trophy } from "lucide-react";
 
 type Game = {
@@ -15,6 +16,7 @@ type Game = {
   awayTeam: string;
   startTime: string;
   status: string;
+  competition?: { name: string } | null;
 };
 
 export default function GamesPage() {
@@ -22,6 +24,8 @@ export default function GamesPage() {
   const [token, setToken] = useState<string | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeLeague, setActiveLeague] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -39,6 +43,20 @@ export default function GamesPage() {
       .finally(() => setLoading(false));
   }, [token, t]);
 
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return games
+      .filter((g) => (activeLeague ? competitionInCategory(g.competition?.name, activeLeague) : true))
+      .filter((g) => (q ? `${g.homeTeam} ${g.awayTeam}`.toLowerCase().includes(q) : true))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [games, activeLeague, search]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const cat of LEAGUE_CATEGORIES) c[cat.id] = games.filter((g) => competitionInCategory(g.competition?.name, cat.id)).length;
+    return c;
+  }, [games]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -46,12 +64,21 @@ export default function GamesPage() {
         <p className="mt-1 text-sm text-white/60">{t("upcomingSub")}</p>
       </div>
 
+      <LeagueFilterBar
+        active={activeLeague}
+        onActiveChange={setActiveLeague}
+        search={search}
+        onSearchChange={setSearch}
+        counts={counts}
+        allCount={games.length}
+      />
+
       {loading ? (
         <div className="grid place-items-center py-14">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
         </div>
-      ) : games.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="py-16 text-center">
           <Trophy className="mx-auto size-10 text-white/20" />
           <p className="mt-3 text-sm font-medium">{t("noUpcoming")}</p>
@@ -59,7 +86,7 @@ export default function GamesPage() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {games.map((game) => (
+          {visible.map((game) => (
             <li key={game.id}>
               <Link
                 href={`/games/${game.id}`}

@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { getAccessToken, getUser } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { marketHelpText, type HelpSelection } from "@/lib/marketHelp";
+import { orderMarkets } from "@/lib/marketOrder";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -108,7 +109,7 @@ export default function GameDetailPage() {
   const unavailable = !game.isPublished || !["SCHEDULED", "LIVE", "SUSPENDED"].includes(game.status);
   const windowClosed = !unavailable && !isBettingWindowOpen(game.startTime, game.status);
   const countdown = timeRemaining(game.startTime);
-  const openMarkets = game.markets?.filter((m) => m.status === "OPEN" && m.selections?.length > 0) ?? [];
+  const openMarkets = orderMarkets(game.markets?.filter((m) => m.status === "OPEN" && m.selections?.length > 0) ?? []);
   const slipLegsHere = slip.legs.filter((l) => l.gameId === game.id);
 
   return (

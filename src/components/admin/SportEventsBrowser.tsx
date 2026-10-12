@@ -38,7 +38,7 @@ import { Trophy, Star, Search, X, Calendar, Hash, RefreshCw, Download, Layers } 
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
-export type SportChoice = "premier-league" | "champions-league";
+export type SportChoice = "premier-league" | "champions-league" | "la-liga" | "bundesliga" | "serie-a" | "ligue-1";
 
 type OddsEvent = {
   id: string;
@@ -51,12 +51,13 @@ type OddsEvent = {
 
 const CONFIG: Record<
   SportChoice,
-  { label: string; badge: string; listPath: string; Icon: typeof Trophy; homeWin: string }
+  { label: string; badge: string; listPath: string; sportKey: string; Icon: typeof Trophy; homeWin: string }
 > = {
   "premier-league": {
     label: "Premier League",
     badge: "Fetch Games • Premier League",
     listPath: "/fetch-games/premier-league-events",
+    sportKey: "soccer_epl",
     Icon: Trophy,
     homeWin: "Premier League fixture from The Odds API",
   },
@@ -64,8 +65,41 @@ const CONFIG: Record<
     label: "UEFA Champions League",
     badge: "Fetch Games • UEFA Champions League",
     listPath: "/fetch-games/champions-league",
+    sportKey: "soccer_uefa_champs_league",
     Icon: Star,
     homeWin: "Champions League fixture from The Odds API",
+  },
+  "la-liga": {
+    label: "La Liga",
+    badge: "Fetch Games • La Liga",
+    listPath: "/fetch-games/la-liga",
+    sportKey: "soccer_spain_la_liga",
+    Icon: Trophy,
+    homeWin: "La Liga fixture from The Odds API",
+  },
+  "bundesliga": {
+    label: "Bundesliga",
+    badge: "Fetch Games • Bundesliga",
+    listPath: "/fetch-games/bundesliga",
+    sportKey: "soccer_germany_bundesliga",
+    Icon: Trophy,
+    homeWin: "Bundesliga fixture from The Odds API",
+  },
+  "serie-a": {
+    label: "Serie A",
+    badge: "Fetch Games • Serie A",
+    listPath: "/fetch-games/serie-a",
+    sportKey: "soccer_italy_serie_a",
+    Icon: Trophy,
+    homeWin: "Serie A fixture from The Odds API",
+  },
+  "ligue-1": {
+    label: "Ligue 1",
+    badge: "Fetch Games • Ligue 1",
+    listPath: "/fetch-games/ligue-1",
+    sportKey: "soccer_france_ligue_one",
+    Icon: Trophy,
+    homeWin: "Ligue 1 fixture from The Odds API",
   },
 };
 
@@ -198,7 +232,7 @@ export function SportEventsBrowser({ choice }: { choice: SportChoice }) {
           <p className="text-sm text-muted-foreground">
             Live fixtures via{" "}
             <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-              {choice === "premier-league" ? "soccer_epl" : "soccer_uefa_champs_league"}
+              {cfg.sportKey}
             </span>{" "}
             from The Odds API. Already-staged fixtures are hidden — select rows and add them to the staged queue.
           </p>

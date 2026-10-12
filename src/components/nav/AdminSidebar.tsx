@@ -112,9 +112,13 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/wallet")) return "wallet";
   if (pathname.startsWith("/admin/fetch-games/staged")) return "staged-games";
-  if (pathname.startsWith("/admin/fetch-games/premier-league-results")) return "premier-league-results";
   if (pathname.startsWith("/admin/fetch-games/premier-league")) return "premier-league";
   if (pathname.startsWith("/admin/fetch-games/champions-league")) return "champions-league";
+  if (pathname.startsWith("/admin/fetch-games/la-liga")) return "la-liga";
+  if (pathname.startsWith("/admin/fetch-games/bundesliga")) return "bundesliga";
+  if (pathname.startsWith("/admin/fetch-games/serie-a")) return "serie-a";
+  if (pathname.startsWith("/admin/fetch-games/ligue-1")) return "ligue-1";
+  if (pathname.startsWith("/admin/results")) return "results";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
   if (pathname.startsWith("/admin/information/markets")) return "markets";
   if (pathname.startsWith("/admin/activity")) return "activity";
@@ -253,13 +257,65 @@ export function AdminSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  render={<Link href="/admin/fetch-games/premier-league-results" />}
-                  isActive={activeKey === "premier-league-results"}
-                  tooltip="Premier League Results"
-                  className={itemClass("premier-league-results")}
+                  render={<Link href="/admin/fetch-games/la-liga" />}
+                  isActive={activeKey === "la-liga"}
+                  tooltip="La Liga"
+                  className={itemClass("la-liga")}
                 >
                   <Trophy className="size-4" />
-                  <span>Premier League Results</span>
+                  <span>La Liga</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/bundesliga" />}
+                  isActive={activeKey === "bundesliga"}
+                  tooltip="Bundesliga"
+                  className={itemClass("bundesliga")}
+                >
+                  <Trophy className="size-4" />
+                  <span>Bundesliga</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/serie-a" />}
+                  isActive={activeKey === "serie-a"}
+                  tooltip="Serie A"
+                  className={itemClass("serie-a")}
+                >
+                  <Trophy className="size-4" />
+                  <span>Serie A</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/ligue-1" />}
+                  isActive={activeKey === "ligue-1"}
+                  tooltip="Ligue 1"
+                  className={itemClass("ligue-1")}
+                >
+                  <Trophy className="size-4" />
+                  <span>Ligue 1</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">RESULTS</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/results" />}
+                  isActive={activeKey === "results"}
+                  tooltip="Results"
+                  className={itemClass("results")}
+                >
+                  <Trophy className="size-4" />
+                  <span>Results</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

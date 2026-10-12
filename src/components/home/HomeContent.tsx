@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
 import { SignInPromptDialog } from "@/components/auth/SignInPrompt";
 import { timeRemaining, isBettingWindowOpen } from "@/lib/timeRemaining";
+import { LeagueFilterBar, competitionInCategory } from "@/components/games/LeagueFilter";
 import {
   Monitor,
   Trophy,
@@ -96,35 +97,15 @@ const leftStaticSports = [
   { labelKey: "liveOnly", icon: Monitor, active: false },
 ];
 
-// Top leagues shown in the left sidebar. Only EPL has games to bet on for now.
+// Top leagues shown in the left sidebar — the five big leagues + Champions League.
 const topLeagues = [
   { id: "epl", name: "English Premier League", short: "EPL", color: "#38003c", logo: "/assets/genenral_logos/premier-league.svg" },
-  { id: "serie-a", name: "Italian Serie A", short: "SA", color: "#003791", logo: "/assets/genenral_logos/italy_serie-a.svg" },
-  { id: "laliga", name: "Spain LaLiga", short: "LL", color: "#ee8707", logo: "/assets/genenral_logos/la-liga.svg" },
-  { id: "bundesliga", name: "Bundesliga", short: "BL", color: "#d20515", logo: "/assets/genenral_logos/bundesliga.svg" },
-  { id: "ligue-1", name: "Ligue 1", short: "L1", color: "#091c3e", logo: "/assets/genenral_logos/france_ligue-1.svg" },
+  { id: "champions", name: "UEFA Champions League", short: "UCL", color: "#00004b", logo: "/assets/genenral_logos/champions-league.svg" },
+  { id: "laliga", name: "Spain LaLiga", short: "LL", color: "#ee8707", logo: "/assets/team_logos/league-la-liga.svg" },
+  { id: "serie-a", name: "Italian Serie A", short: "SA", color: "#003791", logo: "/assets/team_logos/league-serie-a.svg" },
+  { id: "bundesliga", name: "Bundesliga", short: "BL", color: "#d20515", logo: "/assets/team_logos/league-bundesliga.svg" },
+  { id: "ligue-1", name: "France Ligue 1", short: "L1", color: "#091c3e", logo: "/assets/team_logos/league-ligue-1.svg" },
 ];
-
-function LeagueEmpty({ league, onBack }: { league: (typeof topLeagues)[number]; onBack: () => void }) {
-  const t = useTranslations("home");
-  return (
-    <div className="rounded-xl bg-white p-12 text-center shadow-sm border border-[#e2e8f0]">
-      <span className="mx-auto grid size-16 place-items-center overflow-hidden rounded-full bg-white p-2 shadow-md ring-1 ring-[#e2e8f0]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={league.logo} alt={league.name} className="size-full object-contain" />
-      </span>
-      <p className="mt-4 text-base font-bold text-[#0f172a]">{league.name}</p>
-      <p className="mt-1 text-sm font-semibold text-[#334155]">{t("noGamesBet")}</p>
-      <p className="mt-1 text-xs text-[#64748b]">{t("leagueEmptySoon", { league: league.name })}</p>
-      <button
-        onClick={onBack}
-        className="mt-5 rounded-md border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-semibold text-[#0a0f2e] transition hover:bg-[#f8fafc]"
-      >
-        {t("backToAllGames")}
-      </button>
-    </div>
-  );
-}
 
 function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const t = useTranslations("home");
@@ -139,6 +120,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [promptOpen, setPromptOpen] = useState(false);
   const [activeSport, setActiveSport] = useState<string | null>(null);
   const [activeLeague, setActiveLeague] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [results, setResults] = useState<ResultGame[]>([]);
   const [bonusBanner, setBonusBanner] = useState<{ enabled: boolean; minDeposit: number; flatAmount: number; percent: number; expiryDays: number } | null>(null);
   const router = useRouter();
@@ -245,7 +227,22 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
     }
   };
 
-  const filteredGames = activeSport ? games.filter((g) => g.competition?.sport?.name === activeSport) : games;
+  const filteredGames = games.filter((g) => {
+    if (activeSport && g.competition?.sport?.name !== activeSport) return false;
+    if (activeLeague && !competitionInCategory(g.competition?.name, activeLeague)) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !`${g.homeTeam} ${g.awayTeam}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  // Closest games to kickoff first (live games still get sorted by start time;
+  // games list is already filtered to bettable ones).
+  const sortedGames = [...filteredGames].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  const leagueCounts = topLeagues.reduce<Record<string, number>>((acc, lg) => {
+    acc[lg.id] = games.filter((g) => competitionInCategory(g.competition?.name, lg.id)).length;
+    return acc;
+  }, {});
 
   return (
     <div className="flex min-h-[calc(100vh-56px)]">
@@ -331,13 +328,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       {/* Center Content */}
       <div className="flex-1 min-w-0 bg-[#eef2f7] p-4 sm:p-4">
         <div className="mx-auto max-w-[1100px] space-y-4">
-          {activeLeague && activeLeague !== "epl" ? (
-            <LeagueEmpty
-              league={topLeagues.find((l) => l.id === activeLeague) ?? topLeagues[0]}
-              onBack={() => setActiveLeague(null)}
-            />
-          ) : (
-            <>
+          <>
           {/* Mobile hero (hidden on desktop) */}
           <MobileHero isGuest={isGuest} />
 
@@ -400,23 +391,15 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             </div>
           )}
 
-          {activeLeague === "epl" && (
-            <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-[#e2e8f0]">
-              <div className="flex items-center gap-3">
-                <span className="grid size-8 place-items-center overflow-hidden rounded-full bg-white p-1 shadow-sm ring-1 ring-[#e2e8f0]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={topLeagues[0].logo} alt="English Premier League" className="size-full object-contain" />
-                </span>
-                <div>
-                  <div className="text-sm font-bold text-[#0f172a]">English Premier League</div>
-                  <div className="text-[11px] text-[#64748b]">{t("upcomingLiveGames")}</div>
-                </div>
-              </div>
-              <button onClick={() => setActiveLeague(null)} className="text-xs font-medium text-[#3b82f6] hover:underline">
-                {t("clear")}
-              </button>
-            </div>
-          )}
+          {/* League category + club search filter */}
+          <LeagueFilterBar
+            active={activeLeague}
+            onActiveChange={(id) => { setActiveLeague(id); setActiveSport(null); }}
+            search={search}
+            onSearchChange={setSearch}
+            counts={leagueCounts}
+            allCount={games.length}
+          />
 
           {/* Games */}
           <div id="tana-games" className="scroll-mt-16">
@@ -425,20 +408,20 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-12" />
             </div>
-          ) : filteredGames.length === 0 ? (
+          ) : sortedGames.length === 0 ? (
             <div className="rounded-xl bg-white p-12 text-center shadow-sm border border-[#e2e8f0]">
               <Trophy className="mx-auto size-10 text-[#cbd5e1]" />
               <p className="mt-3 text-sm font-medium text-[#0f172a]">{t("noGamesYet")}</p>
               <p className="text-xs text-[#64748b]">{t("checkBackSoon")}</p>
-              {activeSport && (
-                <button onClick={() => { setActiveSport(null); setActiveLeague(null); }} className="mt-3 text-xs text-[#3b82f6] hover:underline">
+              {(activeSport || activeLeague || search) && (
+                <button onClick={() => { setActiveSport(null); setActiveLeague(null); setSearch(""); }} className="mt-3 text-xs text-[#3b82f6] hover:underline">
                   {t("clearFilter")}
                 </button>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredGames.map((game) => {
+              {sortedGames.map((game) => {
                 const countdown = timeRemaining(game.startTime);
                 return (
                 <div key={game.id} className="overflow-hidden rounded-xl bg-white shadow-sm border border-[#e2e8f0]">
@@ -652,8 +635,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               </div>
             </div>
           )}
-            </>
-          )}
+          </>
 
           {/* Footer - dark brand style */}
           <footer className="overflow-hidden rounded-xl bg-[#0a0f2e] shadow-lg">

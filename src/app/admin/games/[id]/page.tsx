@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
 import { GameApiLinkEditor } from "@/components/admin/GameApiLinkEditor";
+import { orderMarkets } from "@/lib/marketOrder";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
 type Market = { id: string; name: string; type: string; status: string; selections: Selection[]; sourceBookmakerKeys?: string[] | null };
@@ -127,6 +128,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({});
   const [approving, setApproving] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [autoFillProgress, setAutoFillProgress] = useState<{ done: number; total: number } | null>(null);
   const [hasJson, setHasJson] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [savedKeys, setSavedKeys] = useState<string[]>([]);
@@ -248,6 +250,46 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
     }
   };
 
+  // Post market approvals in small chunks so a big batch never times out; each
+// chunk is retried on transient failures. Reports progress via setAutoFillProgress.
+  const postApprovals = async (
+    approvals: { marketKey: string; point?: number | null; bookmakerKey: string; selections: { name: string; point?: number; odds: number }[] }[],
+    onProgress: (done: number, total: number) => void
+  ): Promise<{ ok: number; fail: number; firstError: string }> => {
+    const t = getAccessToken();
+    const CHUNK = 5;
+    let ok = 0;
+    let fail = 0;
+    let firstError = "";
+    onProgress(0, approvals.length);
+    for (let i = 0; i < approvals.length; i += CHUNK) {
+      const chunk = approvals.slice(i, i + CHUNK);
+      let chunkResults: { success: boolean; message?: string }[] | null = null;
+      for (let attempt = 0; attempt < 3 && !chunkResults; attempt++) {
+        try {
+          const res = await api.post<{ message: string; data: { success: boolean; message?: string }[] }>(
+            `/games/${gameId}/markets/approve-bulk`,
+            { approvals: chunk },
+            t
+          );
+          chunkResults = res.data ?? [];
+        } catch (e) {
+          if (attempt === 2) throw e;
+          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+        }
+      }
+      for (const r of chunkResults ?? []) {
+        if (r.success) ok++;
+        else {
+          fail++;
+          if (!firstError) firstError = r.message ?? "";
+        }
+      }
+      onProgress(Math.min(ok + fail, approvals.length), approvals.length);
+    }
+    return { ok, fail, firstError };
+  };
+
   const handleRecordSelected = async () => {
     const savedSet = new Set(savedKeys);
     const approvals = visibleGroups
@@ -262,16 +304,13 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       return;
     }
     setRecording(true);
+    setAutoFillProgress({ done: 0, total: approvals.length });
     try {
-      const token = getAccessToken();
-      const res = await api.post<{ message: string; data: { success: boolean; message: string }[] }>(`/games/${gameId}/markets/approve-bulk`, { approvals }, token);
-      const results = res.data ?? [];
-      const ok = results.filter((r) => r.success).length;
-      const fail = results.filter((r) => !r.success).length;
+      const { ok, fail, firstError } = await postApprovals(approvals, (done, total) => setAutoFillProgress({ done, total }));
       if (fail > 0) {
-        toast.success(`Recorded ${ok}/${results.length} markets (${fail} failed — ${results.find((r) => !r.success)?.message ?? ""})`);
+        toast.warning(`Recorded ${ok}/${approvals.length} markets (${fail} failed${firstError ? ` — ${firstError}` : ""})`);
       } else {
-        toast.success(res.message || "Markets recorded");
+        toast.success(`Recorded ${ok} market${ok === 1 ? "" : "s"}`);
       }
       setChecked({});
       onApproved();
@@ -281,6 +320,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       toast.error(e instanceof Error ? e.message : "Failed to record markets");
     } finally {
       setRecording(false);
+      setAutoFillProgress(null);
     }
   };
 
@@ -291,7 +331,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       const savedSet = new Set(savedKeys);
       // Select all unsaved groups, use first bookmaker for each
       const newSelected: Record<string, string> = {};
-      const approvals = [];
+      const approvals: { marketKey: string; point?: number | null; bookmakerKey: string; selections: { name: string; point?: number; odds: number }[] }[] = [];
       for (const g of visibleGroups) {
         const k = groupKey(g);
         if (savedSet.has(k)) continue; // skip already saved
@@ -311,15 +351,13 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
         toast.error("No unsaved markets to auto-fill");
         return;
       }
-      const token = getAccessToken();
-      const res = await api.post<{ message: string; data: { success: boolean; message: string }[] }>(`/games/${gameId}/markets/approve-bulk`, { approvals }, token);
-      const results = res.data ?? [];
-      const ok = results.filter((r) => r.success).length;
-      const fail = results.filter((r) => !r.success).length;
+
+      const { ok, fail, firstError } = await postApprovals(approvals, (done, total) => setAutoFillProgress({ done, total }));
+
       if (fail > 0) {
-        toast.success(`Auto-filled ${ok}/${approvals.length} markets (${fail} failed — ${results.find((r) => !r.success)?.message ?? ""})`);
+        toast.warning(`Auto-filled ${ok}/${approvals.length} markets (${fail} failed${firstError ? ` — ${firstError}` : ""})`);
       } else {
-        toast.success(`Auto-filled ${ok} markets`);
+        toast.success(`Auto-filled ${ok} market${ok === 1 ? "" : "s"}`);
       }
       setChecked({});
       setSelected(newSelected);
@@ -330,6 +368,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
       toast.error(e instanceof Error ? e.message : "Auto-fill failed");
     } finally {
       setAutoFilling(false);
+      setAutoFillProgress(null);
     }
   };
 
@@ -343,7 +382,7 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
     );
   }
 
-  const visibleGroups = scoreOnly ? groups.filter((g) => !NON_SCORE_MARKET_KEYS.includes(g.marketKey)) : groups;
+  const visibleGroups = orderMarkets(scoreOnly ? groups.filter((g) => !NON_SCORE_MARKET_KEYS.includes(g.marketKey)) : groups);
   const hiddenCount = groups.length - visibleGroups.length;
   const selectedCount = visibleGroups.filter((g) => checked[groupKey(g)] && !savedKeys.includes(groupKey(g))).length;
 
@@ -375,7 +414,8 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
               </button>
             </div>
             <Button onClick={() => setAutoFillOpen(true)} disabled={autoFilling || visibleGroups.length === 0} variant="outline" className="border-secondary/30 text-secondary hover:bg-secondary/10" title="Select all markets, pick first bookmaker, and record all at once">
-              {autoFilling ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />} Auto Fill
+              {autoFilling ? <RefreshCw className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+              {autoFilling && autoFillProgress ? `Filling ${autoFillProgress.done}/${autoFillProgress.total}` : "Auto Fill"}
             </Button>
             {selectedCount > 0 && (
               <Button onClick={handleRecordSelected} disabled={recording} className="bg-secondary gap-1">
@@ -869,7 +909,7 @@ export default function GameDetailsPage() {
             <div className="py-12 text-center text-sm text-muted-foreground">No markets yet — fetch from bookmakers below</div>
           ) : (
             <Accordion type="multiple" className="divide-y divide-border">
-              {game.markets.map((m) => {
+              {orderMarkets(game.markets).map((m) => {
                 const sources = Array.isArray(m.sourceBookmakerKeys) ? m.sourceBookmakerKeys.filter((k): k is string => typeof k === "string") : [];
                 return (
                 <AccordionItem key={m.id} value={m.id}>
