@@ -204,6 +204,13 @@
   .admin-cards > tbody > td > * {
     min-width: 0;
   }
+  /* Desktop tables often carry a `min-w-[900px]`-style utility so the desktop
+     layout keeps its columns. Once the rows have become stacked cards that min
+     width would force the page to scroll sideways, so drop it on phones. */
+  .admin-cards {
+    min-width: 0 !important;
+    table-layout: auto;
+  }
 }
 
 /* Striped, never-scrolling data tables (sub-admin console).

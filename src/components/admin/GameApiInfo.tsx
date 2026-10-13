@@ -62,6 +62,7 @@ export function GameApiInfo({ gameId, showFetch = true, onFetched }: { gameId: s
   const [data, setData] = useState<GameApiDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [minimal, setMinimal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,7 +84,7 @@ export function GameApiInfo({ gameId, showFetch = true, onFetched }: { gameId: s
   const handleFetchOdds = async () => {
     setFetching(true);
     try {
-      const res = await api.post<{ message: string }>(`/games/${gameId}/fetch-odds`, {}, getAccessToken());
+      const res = await api.post<{ message: string }>(`/games/${gameId}/fetch-odds`, { minimal }, getAccessToken());
       toast.success(res.message || "Odds fetched and saved to this game's JSON file");
       await load();
       onFetched?.();
@@ -106,22 +107,47 @@ export function GameApiInfo({ gameId, showFetch = true, onFetched }: { gameId: s
 
   if (!data) return <div className="py-6 text-center text-sm text-muted-foreground">No data.</div>;
 
-  const o = data.oddsApi;
+const o = data.oddsApi;
   const f = data.footballData;
+  const oddsOnlyCup =
+    data.sportKey === "soccer_fa_cup" ||
+    data.sportKey === "soccer_england_efl_cup" ||
+    /fa cup|efl cup|league cup/i.test(data.competition?.name ?? "");
+  const effectiveMinimal = oddsOnlyCup || minimal;
 
   return (
     <div className="space-y-4 text-sm">
       {showFetch && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-muted-foreground">
+          <div className="min-w-0 text-xs text-muted-foreground">
             {o.file.exists
               ? `Saved to ${o.file.fileName} • ${o.file.bookmakerCount} bookmakers • ${o.file.marketCount} market types`
               : "No odds file saved for this game yet"}
           </div>
-          <Button size="sm" className="h-8 gap-1.5 bg-primary hover:bg-primary/90" disabled={fetching || !o.present} onClick={handleFetchOdds}
-            title={o.present ? "Fetch every market from The Odds API and save to this game's JSON file" : "Game has no externalEventId"}>
-            {fetching ? <><RefreshCw className="size-4 animate-spin" /> Fetching…</> : <><Download className="size-4" /> Fetch all-market odds</>}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              title={
+                oddsOnlyCup
+                  ? "FA Cup / EFL Cup always fetch minimalistic (EU-only: match winner, BTTS, double chance, correct score)"
+                  : "Fetch EU bookmakers only, limited to match winner, BTTS, double chance and correct score"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={effectiveMinimal}
+                disabled={oddsOnlyCup}
+                onChange={(e) => setMinimal(e.target.checked)}
+                className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <span className={oddsOnlyCup ? "text-muted-foreground" : ""}>Minimalistic</span>
+              {oddsOnlyCup && <span className="text-[10px] text-primary">(locked)</span>}
+            </label>
+            <Button size="sm" className="h-8 gap-1.5 bg-primary hover:bg-primary/90" disabled={fetching || !o.present} onClick={handleFetchOdds}
+              title={o.present ? (effectiveMinimal ? "Fetch EU-only minimal markets and save to this game's JSON file" : "Fetch every market from The Odds API and save to this game's JSON file") : "Game has no externalEventId"}>
+              {fetching ? <><RefreshCw className="size-4 animate-spin" /> Fetching...</> : <><Download className="size-4" /> {effectiveMinimal ? "Fetch minimal odds" : "Fetch all-market odds"}</>}
+            </Button>
+          </div>
         </div>
       )}
 

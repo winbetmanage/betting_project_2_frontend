@@ -94,17 +94,30 @@ export function TicketsReport() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "WON" | "LOST" | "PENDING">("ALL");
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // The report's date window is built from `new Date()`, so the server renders it
+  // in the server timezone. Formatting it only after mount keeps the first client
+  // render identical to the server HTML (no hydration mismatch).
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const { from, to, label } = useMemo(() => rangeToDates(range), [range]);
+  const rangeText = mounted ? `${from.toLocaleString()} → ${to.toLocaleString()}` : "—";
 
   useEffect(() => {
     const token = getAccessToken();
     setLoading(true);
+    setError(null);
     const q = `?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
     api
       .get<{ data: Ticket[] }>(`/bets${q}`, token)
       .then((res) => setTickets(res.data ?? []))
-      .catch(() => setTickets([]))
+      .catch((e) => {
+        // Show the real reason (e.g. 403) rather than an empty report.
+        setTickets([]);
+        setError(e instanceof Error && e.message ? e.message : "Could not load tickets.");
+      })
       .finally(() => setLoading(false));
   }, [from, to]);
 
@@ -266,7 +279,7 @@ export function TicketsReport() {
         <CardHeader className="border-b border-border">
           <CardTitle className="text-base">Tickets — {label}</CardTitle>
           <CardDescription>
-            {from.toLocaleString()} → {to.toLocaleString()}
+            {rangeText}
           </CardDescription>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="relative max-w-sm flex-1 min-w-[220px]">
@@ -278,7 +291,7 @@ export function TicketsReport() {
                 </button>
               )}
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(["ALL", "WON", "LOST", "PENDING"] as const).map((s) => (
                 <Button key={s} size="sm" variant={statusFilter === s ? "default" : "outline"} onClick={() => setStatusFilter(s)}>
                   {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
@@ -293,11 +306,13 @@ export function TicketsReport() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
             </div>
+          ) : error ? (
+            <p className="px-4 py-10 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
           ) : filtered.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-muted-foreground">No tickets in this time frame.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="admin-cards w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">USER</th>

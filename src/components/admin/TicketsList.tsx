@@ -97,6 +97,7 @@ export function TicketsList({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [receiptLoading, setReceiptLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -105,10 +106,16 @@ export function TicketsList({
   useEffect(() => {
     const query = filter === "ALL" ? "" : `?status=${filter}`;
     setLoading(true);
+    setError(null);
     api
       .get<{ data: Ticket[] }>(`/bets${query}`, token)
       .then((res) => setTickets(res.data ?? []))
-      .catch(() => setTickets([]))
+      .catch((e) => {
+        // Surface the failure instead of pretending there are no tickets — a
+        // 403 here means this console role is not allowed to read them.
+        setTickets([]);
+        setError(e instanceof Error && e.message ? e.message : "Could not load tickets.");
+      })
       .finally(() => setLoading(false));
   }, [token, filter]);
 
@@ -215,6 +222,8 @@ export function TicketsList({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
             </div>
+          ) : error ? (
+            <p className="px-4 py-10 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
           ) : filtered.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-muted-foreground">No tickets found.</p>
           ) : (
@@ -228,24 +237,26 @@ export function TicketsList({
                   <div key={t.id} className="px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                       {/* User */}
-                      <div className="min-w-[180px] max-w-[240px]">
-                        <div className="truncate font-semibold text-foreground">
+                      <div className="w-full min-w-0 sm:w-auto sm:min-w-[180px] sm:max-w-[240px]">
+                        <div className="font-semibold break-words text-foreground">
                           {t.user?.name ?? "Unknown user"}
                         </div>
-                        <div className="truncate text-xs text-muted-foreground">{t.user?.email ?? t.id.slice(0, 8)}</div>
+                        <div className="break-all text-xs text-muted-foreground">{t.user?.email ?? t.id.slice(0, 8)}</div>
                         <div className="text-[11px] text-muted-foreground">{new Date(t.placedAt).toLocaleString()}</div>
                       </div>
                       {/* Ticket summary */}
                       <div className="min-w-0 flex-1">
                         <button
                           onClick={() => setExpanded((p) => ({ ...p, [t.id]: !p[t.id] }))}
-                          className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                          className="flex min-w-0 items-start gap-1 text-left text-xs font-medium text-primary hover:underline"
                         >
-                          {isOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                          {t.type} · {legs.length} pick{legs.length === 1 ? "" : "s"} · Stake ETB {Number(t.stake).toFixed(2)} · Odds {Number(t.totalOdds).toFixed(2)}
+                          {isOpen ? <ChevronUp className="mt-0.5 size-3.5 shrink-0" /> : <ChevronDown className="mt-0.5 size-3.5 shrink-0" />}
+                          <span className="min-w-0 break-words">
+                            {t.type} · {legs.length} pick{legs.length === 1 ? "" : "s"} · Stake ETB {Number(t.stake).toFixed(2)} · Odds {Number(t.totalOdds).toFixed(2)}
+                          </span>
                         </button>
                         {!isOpen && legs.length > 0 && (
-                          <div className="mt-1 truncate text-xs text-muted-foreground">
+                          <div className="mt-1 break-words text-xs text-muted-foreground sm:truncate">
                             {legs.slice(0, 2).map((l) =>
                               l.selection.market?.game
                                 ? `${l.selection.market.game.homeTeam} vs ${l.selection.market.game.awayTeam} (${l.selection.name})`
@@ -278,7 +289,7 @@ export function TicketsList({
                     </div>
                     {isOpen && (
                       <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-muted/30">
-                        <table className="w-full text-xs">
+                        <table className="admin-cards w-full text-xs">
                           <thead>
                             <tr className="text-left text-muted-foreground">
                               <th className="px-3 py-2 font-medium">#</th>

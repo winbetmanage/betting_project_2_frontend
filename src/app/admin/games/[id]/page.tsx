@@ -116,11 +116,14 @@ type BookmakerGroup = {
   warning: boolean;
 };
 
-function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { gameId: string; externalEventId: string | null; onApproved: () => void }) {
+function BookmakerMarketsSection({ gameId, externalEventId, competitionName, onApproved }: { gameId: string; externalEventId: string | null; competitionName?: string | null; onApproved: () => void }) {
   // Market keys with no goals-based settlement (corners/cards) — hidden in "Scores only" mode
   const NON_SCORE_MARKET_KEYS = ["corners_1x2", "alternate_totals_corners", "alternate_spreads_corners", "alternate_totals_cards", "alternate_spreads_cards"];
   const [groups, setGroups] = useState<BookmakerGroup[]>([]);
   const [scoreOnly, setScoreOnly] = useState(true);
+  const [minimal, setMinimal] = useState(false);
+  const oddsOnlyCup = /fa cup|efl cup|league cup/i.test(competitionName ?? "");
+  const effectiveMinimal = oddsOnlyCup || minimal;
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [selected, setSelected] = useState<Record<string, string>>({});
@@ -182,8 +185,8 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
     setFetching(true);
     try {
       const token = getAccessToken();
-      const res = await api.post<{ data: { stored: number } }>(`/games/${gameId}/fetch-odds`, {}, token);
-      toast.success(`Fetched ${res.data.stored} bookmakers (all market types)`);
+      const res = await api.post<{ data: { stored: number } }>(`/games/${gameId}/fetch-odds`, { minimal: effectiveMinimal }, token);
+      toast.success(`Fetched ${res.data.stored} bookmakers${effectiveMinimal ? " (minimalistic: EU, match winner / BTTS / double chance / correct score)" : " (all market types)"}`);
       await load();
       reloadPage();
     } catch (e) {
@@ -422,8 +425,26 @@ function BookmakerMarketsSection({ gameId, externalEventId, onApproved }: { game
                 {recording ? "Recording..." : "Record Selected"} ({selectedCount})
               </Button>
             )}
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              title={
+                oddsOnlyCup
+                  ? "FA Cup / EFL Cup always fetch minimalistic (EU-only: match winner, BTTS, double chance, correct score)"
+                  : "Fetch EU bookmakers only, limited to match winner, BTTS, double chance and correct score"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={effectiveMinimal}
+                disabled={oddsOnlyCup}
+                onChange={(e) => setMinimal(e.target.checked)}
+                className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <span className={oddsOnlyCup ? "text-muted-foreground" : ""}>Minimalistic</span>
+              {oddsOnlyCup && <span className="text-[10px] text-primary">(locked)</span>}
+            </label>
             <Button onClick={handleFetch} disabled={fetching} className="bg-primary">
-              {fetching ? "Fetching..." : "Fetch Available Markets"}
+              {fetching ? "Fetching..." : effectiveMinimal ? "Fetch Minimal Markets" : "Fetch Available Markets"}
             </Button>
           </div>
         </div>
@@ -967,7 +988,7 @@ export default function GameDetailsPage() {
         </CardContent>
       </Card>
 
-      <BookmakerMarketsSection gameId={game.id} externalEventId={game.externalEventId} onApproved={() => {
+      <BookmakerMarketsSection gameId={game.id} externalEventId={game.externalEventId} competitionName={game.competition?.name} onApproved={() => {
         const token = getAccessToken();
         api.get<{ data: Game }>(`/games/${id}`, token).then((res) => setGame(res.data)).catch(()=>{});
       }} />

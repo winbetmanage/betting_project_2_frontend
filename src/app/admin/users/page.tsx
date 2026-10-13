@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { api, ApiError } from "@/lib/api";
@@ -22,8 +22,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Users, ShieldCheck, Crown, User as UserIcon, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Loader2, Search, X } from "lucide-react";
+import { Users, ShieldCheck, Crown, Eye, Pencil, Trash2, Hash, Mail, Wallet, Calendar, Activity, Search, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { isSubAdminRole } from "@/lib/roles";
 
 const ALL_ROLES = ["USER", "ADMIN", "ODDS_MANAGER", "AGENT", "SUBADMIN"] as const;
@@ -64,6 +65,11 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // Server-side pagination, so every account is reachable no matter how many exist.
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -77,33 +83,43 @@ export default function AdminUsersPage() {
     setToken(getAccessToken());
   }, []);
 
-  const load = async () => {
+  const load = async (targetPage?: number) => {
     const t = getAccessToken() ?? token;
+    const p = Math.max(1, targetPage ?? page);
     setLoading(true);
     try {
-      const res = await api.get<{ data: UserRow[] }>(`/users${search ? `?search=${encodeURIComponent(search)}` : ""}`, t);
+      const qs = new URLSearchParams();
+      if (search.trim()) qs.set("search", search.trim());
+      qs.set("page", String(p));
+      qs.set("limit", String(limit));
+      const res = await api.get<{ data: UserRow[]; total: number; totalPages: number }>(`/users?${qs.toString()}`, t);
       setUsers(res.data ?? []);
+      setTotal(res.total ?? 0);
+      setTotalPages(Math.max(1, res.totalPages ?? 1));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load users");
       setUsers([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
   };
 
+  // One request per page/search/limit. Typing is debounced; paging is immediate.
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
-  useEffect(() => {
-    const id = setTimeout(load, 400);
+    if (!token) return;
+    const id = setTimeout(() => { void load(page); }, search.trim() ? 350 : 0);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [token, search, page, limit]);
 
-  const admins = users.filter((u) => u.role === "ADMIN" || u.role === "ODDS_MANAGER" || isSubAdminRole(u.role));
-  const regulars = users.filter((u) => u.role === "USER");
+  // Admins & betting managers first, then agents, then players — within each page.
+  const sortedUsers = useMemo(() => {
+    const rank = (role: string) =>
+      role === "ADMIN" ? 0 : role === "ODDS_MANAGER" || isSubAdminRole(role) ? 1 : role === "AGENT" ? 2 : 3;
+    return [...users].sort((a, b) => rank(a.role) - rank(b.role));
+  }, [users]);
 
   const roleBadgeClass = (role: string) =>
     role === "ADMIN"
@@ -201,16 +217,18 @@ export default function AdminUsersPage() {
     }
   };
 
-  const UserTable = ({ data, title, subtitle, icon: Icon, showAgent = false }: { data: UserRow[]; title: string; subtitle: string; icon: React.ComponentType<{ className?: string }>; showAgent?: boolean }) => (
+  const UserTable = ({ data }: { data: UserRow[] }) => (
     <Card className="border-border bg-card shadow-sm">
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="size-5 text-primary" /> {title}
+          <ShieldCheck className="size-5 text-primary" /> Users
           <Badge variant="secondary" className="ml-2 bg-primary/15 text-primary border-primary/20">
-            {data.length}
+            {data.length} on this page
           </Badge>
         </CardTitle>
-        <CardDescription>{subtitle}</CardDescription>
+        <CardDescription>
+          Every account in one list — admins &amp; betting managers on top, then agents, then players.
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         {loading ? (
@@ -219,48 +237,49 @@ export default function AdminUsersPage() {
             <img src="/assets/custom/infinite-spinner.svg" alt="Loading" className="size-10" />
           </div>
           ) : data.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">No users in this category</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">No users found</div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table className="admin-cards">
+          <>
+            {/* Desktop: fixed-width table that fits the screen without sideways scroll */}
+            <div className="hidden md:block">
+              <Table className="table-fixed">
               <TableHeader className="bg-primary">
                 <TableRow className="hover:bg-primary border-primary">
-                  <TableHead className="text-white text-xs tracking-widest">USER</TableHead>
-                  <TableHead className="text-white text-xs tracking-widest">{showAgent ? "AGENT" : "ROLE"}</TableHead>
-                  <TableHead className="text-white text-xs tracking-widest">BALANCE</TableHead>
-                  <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
-                  <TableHead className="text-white text-xs tracking-widest">JOINED</TableHead>
-                  <TableHead className="text-right text-white text-xs tracking-widest">ACTIONS</TableHead>
+                  <TableHead className="w-[34%] text-white text-xs tracking-widest">USER</TableHead>
+                  <TableHead className="w-[14%] text-white text-xs tracking-widest">ROLE</TableHead>
+                  <TableHead className="w-[16%] text-white text-xs tracking-widest">BALANCE</TableHead>
+                  <TableHead className="w-[14%] text-white text-xs tracking-widest">STATUS</TableHead>
+                  <TableHead className="w-[12%] text-white text-xs tracking-widest">JOINED</TableHead>
+                  <TableHead className="w-[10%] text-right text-white text-xs tracking-widest">ACTIONS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((u) => (
                   <TableRow key={u.id} className="border-border hover:bg-muted/50">
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className={`grid size-9 place-items-center rounded-full text-white text-xs font-bold ${avatarClass(u.role)}`}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`grid size-9 shrink-0 place-items-center rounded-full text-white text-xs font-bold ${avatarClass(u.role)}`}>
                           {u.name?.[0]?.toUpperCase() ?? u.email[0].toUpperCase()}
                         </div>
-                        <div>
-                          <div className="font-medium text-sm flex items-center gap-1">
-                            {u.name || "—"} {u.role === "ADMIN" && <Crown className="size-3 text-secondary" />}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1 truncate text-sm font-medium">
+                            {u.name || "—"} {u.role === "ADMIN" && <Crown className="size-3 shrink-0 text-secondary" />}
                           </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="size-3" /> {u.email}
+                          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                            <Mail className="size-3 shrink-0" /> <span className="truncate">{u.email}</span>
                           </div>
-                          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <Hash className="size-3" /> {u.id.slice(0, 8)}…
+                          <div className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+                            <Hash className="size-3 shrink-0" /> {u.id.slice(0, 8)}…
                           </div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {showAgent ? (
-                        <span className="text-sm font-medium">{agentFirstName(u)}</span>
-                      ) : (
-                        <Badge className={roleBadgeClass(u.role)} variant="outline">
-                          {u.role}
-                        </Badge>
+                      <Badge className={roleBadgeClass(u.role)} variant="outline">
+                        {u.role}
+                      </Badge>
+                      {u.role === "USER" && u.referredAs && (
+                        <div className="mt-1 truncate text-[10px] text-muted-foreground">Agent: {agentFirstName(u)}</div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -272,19 +291,12 @@ export default function AdminUsersPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {showAgent ? (
-                        <span className="flex items-center gap-1.5 text-xs font-medium">
-                          <span className={`size-2.5 rounded-full ${u.isActive ? "bg-green-500" : "bg-red-500"}`} />
+                      <>
+                        <Badge className={u.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive border-destructive/20"}>
                           {u.isActive ? "Active" : "Inactive"}
-                        </span>
-                      ) : (
-                        <>
-                          <Badge className={u.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive border-destructive/20"}>
-                            {u.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                          {u.emailVerified && <Badge variant="outline" className="ml-1 text-[10px] border-secondary/20 text-secondary">Verified</Badge>}
-                        </>
-                      )}
+                        </Badge>
+                        {u.emailVerified && <Badge variant="outline" className="ml-1 text-[10px] border-secondary/20 text-secondary">Verified</Badge>}
+                      </>
                     </TableCell>
                     <TableCell>
                       <div className="text-xs">{new Date(u.createdAt).toLocaleDateString()}</div>
@@ -330,7 +342,80 @@ export default function AdminUsersPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+            </div>
+
+            {/* Mobile: stacked cards, every field on its own wrapped line — no table, no sideways scroll */}
+            <div className="space-y-3 p-3 md:hidden">
+              {data.map((u) => (
+                <div key={u.id} className="rounded-xl border border-border bg-card p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <div className={`grid size-9 shrink-0 place-items-center rounded-full text-white text-xs font-bold ${avatarClass(u.role)}`}>
+                        {u.name?.[0]?.toUpperCase() ?? u.email[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-sm font-semibold">
+                          <span className="break-words">{u.name || "—"}</span>
+                          {u.role === "ADMIN" && <Crown className="size-3 shrink-0 text-secondary" />}
+                        </div>
+                        <div className="break-all text-xs text-muted-foreground">{u.email}</div>
+                      </div>
+                    </div>
+                    <Badge className={`${roleBadgeClass(u.role)} shrink-0`} variant="outline">
+                      {u.role}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Badge className={u.isActive ? "bg-secondary text-white" : "bg-destructive/10 text-destructive border-destructive/20"}>
+                      {u.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                    {u.emailVerified && (
+                      <Badge variant="outline" className="border-secondary/20 text-secondary">Verified</Badge>
+                    )}
+                    <span className="font-mono">
+                      {u._count.bets} bets • {u._count.transactions} tx
+                    </span>
+                  </div>
+
+                  <div className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+                    <div className="font-mono">Balance: ${Number(u.balance).toFixed(2)}</div>
+                    <div className="flex items-center gap-1">
+                      <Hash className="size-3 shrink-0" /> {u.id.slice(0, 8)}…
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="size-3 shrink-0" /> Joined {new Date(u.createdAt).toLocaleDateString()}
+                    </div>
+                    {u.role === "USER" && u.referredAs && (
+                      <div className="break-words">Agent: {agentFirstName(u)}</div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="h-9 flex-1" onClick={() => openDetails(u)}>
+                      <Eye className="size-3.5" /> Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 flex-1"
+                      onClick={() => { setSelected(u); openEdit(u); }}
+                    >
+                      <Pencil className="size-3.5" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 flex-1 text-destructive hover:bg-destructive/10"
+                      onClick={() => { setSelected(u); setDeleteOpen(true); }}
+                    >
+                      <Trash2 className="size-3.5" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -344,33 +429,100 @@ export default function AdminUsersPage() {
             <Users className="size-3.5" /> Manage Bettors
           </div>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">All registered accounts — admins on top, players below. Agents live under their own menu. Details, edit & delete.</p>
+          <p className="text-sm text-muted-foreground">Every registered account in one paginated list — admins &amp; betting managers on top, then agents, then players. Details, edit &amp; delete.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-1.5 shadow-sm">
-            <Search className="size-4 text-primary" />
+          <div className="relative flex w-full items-center gap-2 rounded-xl border border-border bg-white px-3 py-1.5 shadow-sm sm:w-auto">
+            <Search className="size-4 shrink-0 text-primary" />
             <Input
               placeholder="Search by name or email..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border-0 p-0 pl-1 shadow-none focus-visible:ring-0 w-[260px] placeholder:text-muted-foreground"
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full border-0 p-0 pl-1 shadow-none focus-visible:ring-0 sm:w-[260px] placeholder:text-muted-foreground"
             />
             {search ? (
-              <button onClick={() => setSearch("")} className="rounded-full bg-muted p-1 hover:bg-muted/80">
+              <button onClick={() => { setSearch(""); setPage(1); }} className="shrink-0 rounded-full bg-muted p-1 hover:bg-muted/80">
                 <X className="size-3" />
               </button>
             ) : (
-              <span className="hidden sm:inline text-xs text-muted-foreground">Name / Email</span>
+              <span className="hidden text-xs text-muted-foreground sm:inline">Name / Email</span>
             )}
           </div>
-          <Badge variant="outline" className="border-primary/20 text-primary whitespace-nowrap">
-            <Activity className="size-3" /> {users.length} total
+          <Badge variant="outline" className="whitespace-nowrap border-primary/20 text-primary">
+            <Activity className="size-3" /> {total} total
           </Badge>
         </div>
       </div>
 
-      <UserTable data={admins} title="Admins & Betting Managers" subtitle="Privileged accounts — shown on top as requested" icon={ShieldCheck} />
-      <UserTable data={regulars} title="Players (Users)" subtitle="Regular bettors — agent shown per player, full edit & delete controls" icon={UserIcon} showAgent />
+      <UserTable data={sortedUsers} />
+
+      {/* Pagination — every account is reachable */}
+      {!loading && total > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span>
+              Showing {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
+            </span>
+            <label className="flex items-center gap-1.5">
+              Rows
+              <select
+                value={limit}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {totalPages > 1 && (
+            <Pagination className="mx-0 w-auto">
+              <PaginationContent className="flex-wrap">
+                <PaginationItem>
+                  <PaginationLink
+                    size="icon"
+                    aria-disabled={page <= 1}
+                    className={page <= 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </PaginationLink>
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .map((p, i, arr) => (
+                    <span key={p} className="flex items-center gap-1">
+                      {i > 0 && arr[i - 1] !== p - 1 && <span className="px-1 text-muted-foreground">…</span>}
+                      <PaginationItem>
+                        <PaginationLink
+                          className="cursor-pointer"
+                          isActive={p === page}
+                          onClick={() => setPage(p)}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </span>
+                  ))}
+                <PaginationItem>
+                  <PaginationLink
+                    size="icon"
+                    aria-disabled={page >= totalPages}
+                    className={page >= totalPages ? "pointer-events-none opacity-40" : "cursor-pointer"}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </PaginationLink>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </div>
+      )}
 
       {/* Edit */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

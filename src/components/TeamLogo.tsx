@@ -290,27 +290,26 @@ export function teamLogoPath(name: string | null | undefined, ext: "png" | "svg"
 
 /**
  * Resolve a club to a displayable logo URL.
- *  1. Local SVG set — the five covered leagues (EPL, La Liga, Ligue 1,
- *     Bundesliga, Serie A) live in `public/assets/team_logos`.
- *  2. Wikimedia Commons fallback — clubs outside those leagues
- *     (see lib/wikimediaClubLogos.ts). URLs are verified hotlinkable SVGs.
- *  3. Generic placeholder — so the UI never breaks for an unknown club.
- *
- * Works identically on the admin and user side (both render <TeamLogo>), so a
- * club outside the five leagues gets its Wikimedia crest everywhere.
+ *  1. Local SVG set — clubs we ship in `public/assets/team_logos`.
+ *  2. Wikimedia Commons fallback — a static list of verified hotlinkable SVGs
+ *     (see lib/wikimediaClubLogos.ts).
+ *  3. Online resolver — `/api/v1/club-logos?name=…` looks the club up on
+ *     Wikipedia/Commons at request time (backend, cached). So ANY club without a
+ *     local SVG still gets a real crest, and the UI never breaks.
  */
 export function getClubLogo(name: string | null | undefined): string {
   if (!name) return GENERIC_CLUB_LOGO;
   if (resolveTeamLogoSlug(name)) return `${teamLogoPath(name)}?v=2`;
   const key = normalizeName(name);
   if (WIKIMEDIA_LOGO_BY_CLUB[key]) return WIKIMEDIA_LOGO_BY_CLUB[key];
-  // Unique prefix fallback, e.g. "fk-bodo-glimt" → key "bodo-glimt",
-  // "fenerbahce-sk" → key "fenerbahce". Only used when exactly one key matches.
+  // Unique prefix fallback, e.g. "fk-bodo-glimt" → key "bodo-glimt".
   const hits = Object.keys(WIKIMEDIA_LOGO_BY_CLUB).filter(
     (slug) => slug.startsWith(`${key}-`) || key.startsWith(`${slug}-`)
   );
   if (hits.length === 1) return WIKIMEDIA_LOGO_BY_CLUB[hits[0]];
-  return GENERIC_CLUB_LOGO;
+  // Permanent online fallback: the backend resolves the crest from Wikimedia
+  // (302 → verified SVG) and falls back to the generic logo if nothing is found.
+  return `/api/v1/club-logos?name=${encodeURIComponent(name)}`;
 }
 
 export function countryFlagPath(country: string | null | undefined): string {
@@ -325,6 +324,8 @@ const LEAGUE_LOGOS: { match: string[]; src: string; alt: string }[] = [
   { match: ["serie a", "serie-a"], src: "/assets/team_logos/league-serie-a.svg", alt: "Serie A" },
   { match: ["ligue 1", "ligue-1"], src: "/assets/team_logos/league-ligue-1.svg", alt: "Ligue 1" },
   { match: ["champions"], src: "/assets/genenral_logos/champions-league.svg", alt: "UEFA Champions League" },
+  { match: ["fa cup"], src: "/assets/genenral_logos/fa-cup.svg", alt: "FA Cup" },
+  { match: ["efl cup", "league cup"], src: "/assets/genenral_logos/efl-cup.svg", alt: "EFL Cup" },
 ];
 
 export function LeagueLogo({
@@ -359,10 +360,11 @@ export function TeamLogo({
   className?: string;
 }) {
   // Local entries ship as .svg (fall back to .png then a letter badge).
-  // Wikimedia / placeholder entries are single remote URLs → letter on error.
+  // Remote entries (Wikimedia URL or the backend resolver endpoint) are a single
+  // source → letter badge on error.
   const localSlug = name ? resolveTeamLogoSlug(name) : null;
   const remote = name ? getClubLogo(name) : GENERIC_CLUB_LOGO;
-  const isRemote = !!name && !localSlug && remote.startsWith("http");
+  const isRemote = !!name && !localSlug && (remote.startsWith("http") || remote.startsWith("/api/"));
   const [fallback, setFallback] = useState<"svg" | "png" | "letter">("svg");
 
   const onError = useCallback(() => {
@@ -388,7 +390,7 @@ export function TeamLogo({
     );
   }
 
-  // Local → .svg then .png; remote (Wikimedia) → the exact URL, no query.
+  // Local → .svg then .png; remote (Wikimedia / resolver) → the exact URL, no query.
   const src = isRemote ? remote : `${teamLogoPath(name, fallback as "png" | "svg")}?v=2`;
 
   return (

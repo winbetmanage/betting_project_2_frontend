@@ -203,6 +203,12 @@ function errMessage(e: unknown, fallback: string): string {
   return e instanceof ApiError || e instanceof Error ? e.message : fallback;
 }
 
+// FA Cup / EFL Cup are odds-api-only — no football-data linking/confirmation.
+function isOddsOnly(name: string | null | undefined): boolean {
+  const n = (name ?? "").toLowerCase();
+  return n.includes("fa cup") || n.includes("efl cup") || n.includes("league cup");
+}
+
 export default function StagedGamesPage() {
   const [token, setToken] = useState<string | null>(null);
 
@@ -715,6 +721,7 @@ export default function StagedGamesPage() {
                       const confirmed = r.status === "CONFIRMED";
                       const linked = r.footballDataMatchId != null;
                       const added = r.gameId != null || r.game != null;
+                      const oddsOnly = isOddsOnly(r.competition.name);
                       return (
                         <TableRow key={r.id} className={confirmed ? "border-secondary/20 bg-secondary/10 hover:bg-secondary/15" : "border-border hover:bg-muted/50"}>
                           <TableCell>
@@ -754,21 +761,27 @@ export default function StagedGamesPage() {
                           <TableCell className="font-mono text-xs">{formatRemaining(r.oddsApiStartTime, now)}</TableCell>
                           <TableCell className="text-center">
                             <div className="inline-flex flex-col items-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => (added ? openDetails(r) : openFdFinder({ id: r.id, home: r.homeTeam.fullName, away: r.awayTeam.fullName, day: r.oddsApiStartTime.slice(0, 10) }))}
-                                  className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 transition hover:bg-muted/60"
-                                  title={added ? "Added to games table — click for details" : linked ? `football-data match ${r.footballDataMatchId} — click to change` : "click to find a football-data match"}
-                                >
-                                  {linked ? <CheckCircle2 className="size-5 text-secondary" /> : <XCircle className="size-5 text-destructive" />}
-                                </button>
-                                {added && (
-                                  <span title="Added to games table" className="inline-flex">
-                                    <CheckCircle2 className="size-5 text-emerald-500" />
-                                  </span>
-                                )}
-                              </div>
+                              {oddsOnly ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary" title="Odds API only — no football-data link needed">
+                                  Odds API
+                                </span>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => (added ? openDetails(r) : openFdFinder({ id: r.id, home: r.homeTeam.fullName, away: r.awayTeam.fullName, day: r.oddsApiStartTime.slice(0, 10) }))}
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 transition hover:bg-muted/60"
+                                    title={added ? "Added to games table — click for details" : linked ? `football-data match ${r.footballDataMatchId} — click to change` : "click to find a football-data match"}
+                                  >
+                                    {linked ? <CheckCircle2 className="size-5 text-secondary" /> : <XCircle className="size-5 text-destructive" />}
+                                  </button>
+                                  {added && (
+                                    <span title="Added to games table" className="inline-flex">
+                                      <CheckCircle2 className="size-5 text-emerald-500" />
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {linked && r.footballDataStatus && (
                                 <div className={`mt-0.5 text-[9px] font-semibold uppercase tracking-wide ${r.footballDataStatus === "IN_PLAY" ? "text-destructive" : r.footballDataStatus === "FINISHED" ? "text-secondary" : "text-muted-foreground"}`}>
                                   {r.footballDataStatus.replace("_", " ")}
@@ -966,7 +979,14 @@ export default function StagedGamesPage() {
                 <RawBlock label="oddsApiRaw" value={details.oddsApiRaw} />
               </Section>
 
-              {/* Football-data */}
+              {/* Football-data (skipped entirely for odds-api-only competitions) */}
+              {isOddsOnly(details.competition.name) ? (
+                <Section title="Data source" icon={<Star className="size-4 text-primary" />}>
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">
+                    <CheckCircle2 className="size-4" /> Odds API only — this competition is not tracked by football-data.org. It can be added to the games table directly, and results are settled from The Odds API scores.
+                  </div>
+                </Section>
+              ) : (
               <Section
                 title="football-data.org"
                 icon={<Star className="size-4 text-primary" />}
@@ -1025,6 +1045,7 @@ export default function StagedGamesPage() {
                   </div>
                 )}
               </Section>
+              )}
 
               {/* Team mapping */}
               <Section title="Team name mapping" icon={<Hash className="size-4 text-primary" />}>
@@ -1041,6 +1062,10 @@ export default function StagedGamesPage() {
                     <CheckCircle2 className="size-4" /> Already added to games table
                   </Badge>
                 ) : details.footballDataMatchId != null && details.status !== "REJECTED" ? (
+                  <Button className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500" disabled={confirming} onClick={() => handleConfirmToGames(details.id)}>
+                    {confirming ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />} Add to games table
+                  </Button>
+                ) : isOddsOnly(details.competition.name) && details.status !== "REJECTED" ? (
                   <Button className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500" disabled={confirming} onClick={() => handleConfirmToGames(details.id)}>
                     {confirming ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />} Add to games table
                   </Button>

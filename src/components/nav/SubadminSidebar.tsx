@@ -12,6 +12,11 @@ import {
   UserCog,
   User,
   ShieldCheck,
+  Tickets,
+  CircleCheck,
+  CircleX,
+  Clock,
+  ChartColumn,
 } from "lucide-react";
 
 import {
@@ -44,6 +49,16 @@ const peopleItems = [
   { key: "agents", title: "Agents", url: "/subadmin/agents", icon: UserCog },
 ];
 
+// Read-only ticket views — identical list, filters, legs and receipt as the main
+// admin console. Settlement remains admin-only.
+const ticketItems = [
+  { key: "tickets", title: "All Tickets", url: "/subadmin/tickets", icon: Tickets },
+  { key: "tickets-won", title: "Won Tickets", url: "/subadmin/tickets/won", icon: CircleCheck },
+  { key: "tickets-lost", title: "Lost Tickets", url: "/subadmin/tickets/lost", icon: CircleX },
+  { key: "tickets-pending", title: "Pending Tickets", url: "/subadmin/tickets/pending", icon: Clock },
+  { key: "tickets-report", title: "Report", url: "/subadmin/tickets/report", icon: ChartColumn },
+];
+
 const accountItems = [
   { key: "profile", title: "My Profile", url: "/subadmin/profile", icon: User },
 ];
@@ -53,6 +68,12 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/subadmin/deposits")) return "deposits";
   if (pathname.startsWith("/subadmin/withdrawals")) return "withdrawals";
   if (pathname.startsWith("/subadmin/transfer-accounts")) return "transfer-accounts";
+  // Order matters: the report/won/lost/pending routes are prefixes of /subadmin/tickets.
+  if (pathname.startsWith("/subadmin/tickets/report")) return "tickets-report";
+  if (pathname.startsWith("/subadmin/tickets/won")) return "tickets-won";
+  if (pathname.startsWith("/subadmin/tickets/lost")) return "tickets-lost";
+  if (pathname.startsWith("/subadmin/tickets/pending")) return "tickets-pending";
+  if (pathname.startsWith("/subadmin/tickets")) return "tickets";
   if (pathname.startsWith("/subadmin/agents")) return "agents";
   if (pathname.startsWith("/subadmin/users")) return "users";
   if (pathname.startsWith("/subadmin/profile")) return "profile";
@@ -122,6 +143,11 @@ export function SubadminSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">PEOPLE</SidebarGroupLabel>
           <SidebarGroupContent>{renderItems(peopleItems)}</SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] tracking-widest text-white/40">TICKETS</SidebarGroupLabel>
+          <SidebarGroupContent>{renderItems(ticketItems)}</SidebarGroupContent>
         </SidebarGroup>
 
         <SidebarGroup>

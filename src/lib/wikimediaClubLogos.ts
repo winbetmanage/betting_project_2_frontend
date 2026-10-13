@@ -47,6 +47,12 @@ export const WIKIMEDIA_LOGO_BY_CLUB: Record<string, string> = {
   "sk-slavia-praha": "https://upload.wikimedia.org/wikipedia/commons/2/2b/SK_Slavia_Praha_full_logo.svg",
   "slavia-praha": "https://upload.wikimedia.org/wikipedia/commons/2/2b/SK_Slavia_Praha_full_logo.svg",
   "slavia-prague": "https://upload.wikimedia.org/wikipedia/commons/2/2b/SK_Slavia_Praha_full_logo.svg",
+  // FA Cup / EFL Cup clubs without a local crest
+  "bradford-city": "https://upload.wikimedia.org/wikipedia/en/0/04/Bradford_City_AFC_crest.svg",
+  "bradford-city-afc": "https://upload.wikimedia.org/wikipedia/en/0/04/Bradford_City_AFC_crest.svg",
+  "fleetwood-town": "https://upload.wikimedia.org/wikipedia/en/e/ed/Fleetwood_Town_F.C._logo.svg",
+  "peterborough-united": "https://upload.wikimedia.org/wikipedia/en/9/9a/Peterborough_United_FC_crest.svg",
+  "peterborough": "https://upload.wikimedia.org/wikipedia/en/9/9a/Peterborough_United_FC_crest.svg",
 };
 
 /** Generic fallback so the UI never breaks for an unknown club. */

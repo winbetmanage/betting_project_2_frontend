@@ -38,7 +38,7 @@ import { Trophy, Star, Search, X, Calendar, Hash, RefreshCw, Download, Layers } 
 
 const SPINNER = "/assets/custom/infinite-spinner.svg";
 
-export type SportChoice = "premier-league" | "champions-league" | "la-liga" | "bundesliga" | "serie-a" | "ligue-1";
+export type SportChoice = "premier-league" | "champions-league" | "la-liga" | "bundesliga" | "serie-a" | "ligue-1" | "fa-cup" | "efl-cup";
 
 type OddsEvent = {
   id: string;
@@ -100,6 +100,22 @@ const CONFIG: Record<
     sportKey: "soccer_france_ligue_one",
     Icon: Trophy,
     homeWin: "Ligue 1 fixture from The Odds API",
+  },
+  "fa-cup": {
+    label: "FA Cup",
+    badge: "Fetch Games • FA Cup (Odds API only)",
+    listPath: "/fetch-games/fa-cup",
+    sportKey: "soccer_fa_cup",
+    Icon: Trophy,
+    homeWin: "FA Cup fixture from The Odds API",
+  },
+  "efl-cup": {
+    label: "EFL Cup",
+    badge: "Fetch Games • EFL Cup (Odds API only)",
+    listPath: "/fetch-games/efl-cup",
+    sportKey: "soccer_england_efl_cup",
+    Icon: Trophy,
+    homeWin: "EFL Cup fixture from The Odds API",
   },
 };
 

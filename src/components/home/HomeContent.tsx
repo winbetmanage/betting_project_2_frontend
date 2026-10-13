@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -8,6 +8,7 @@ import { isAuthenticated, getAccessToken, getUser } from "@/lib/auth";
 import { toast } from "sonner";
 import PromoSlider from "./PromoSlider";
 import MobileHero from "./MobileHero";
+import { MobileTabBar } from "./MobileTabBar";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { useBetSlip } from "@/components/bets/BetSlipProvider";
 import { useTranslations } from "next-intl";
@@ -97,10 +98,13 @@ const leftStaticSports = [
   { labelKey: "liveOnly", icon: Monitor, active: false },
 ];
 
-// Top leagues shown in the left sidebar — the five big leagues + Champions League.
+// Top leagues shown in the left sidebar — the five big leagues + Champions League
+// + the two English cups.
 const topLeagues = [
   { id: "epl", name: "English Premier League", short: "EPL", color: "#38003c", logo: "/assets/genenral_logos/premier-league.svg" },
   { id: "champions", name: "UEFA Champions League", short: "UCL", color: "#00004b", logo: "/assets/genenral_logos/champions-league.svg" },
+  { id: "fa-cup", name: "FA Cup", short: "FA", color: "#d0021b", logo: "/assets/genenral_logos/fa-cup.svg" },
+  { id: "efl-cup", name: "EFL Cup", short: "EFL", color: "#0b4ea2", logo: "/assets/genenral_logos/efl-cup.svg" },
   { id: "laliga", name: "Spain LaLiga", short: "LL", color: "#ee8707", logo: "/assets/team_logos/league-la-liga.svg" },
   { id: "serie-a", name: "Italian Serie A", short: "SA", color: "#003791", logo: "/assets/team_logos/league-serie-a.svg" },
   { id: "bundesliga", name: "Bundesliga", short: "BL", color: "#d20515", logo: "/assets/team_logos/league-bundesliga.svg" },
@@ -146,6 +150,9 @@ function orderMatchWinner(selections: Selection[], homeTeam: string, awayTeam: s
   return [home, draw, away];
 }
 
+/** How many upcoming games the home list reveals at a time. */
+const GAMES_PAGE_SIZE = 10;
+
 function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const t = useTranslations("home");
   const tNav = useTranslations("nav");
@@ -162,6 +169,11 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<ResultGame[]>([]);
   const [bonusBanner, setBonusBanner] = useState<{ enabled: boolean; minDeposit: number; flatAmount: number; percent: number; expiryDays: number } | null>(null);
+  // Progressive reveal: the first batch renders immediately and each further
+  // batch of 10 is appended as the sentinel at the bottom scrolls into view.
+  const [visibleCount, setVisibleCount] = useState(GAMES_PAGE_SIZE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -278,10 +290,51 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   // games list is already filtered to bettable ones).
   const sortedGames = [...filteredGames].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
+  const hasMore = sortedGames.length > visibleCount;
+  const visibleGames = hasMore ? sortedGames.slice(0, visibleCount) : sortedGames;
+
+  // Changing a filter starts the list again from the first batch.
+  useEffect(() => {
+    setVisibleCount(GAMES_PAGE_SIZE);
+  }, [activeSport, activeLeague, search]);
+
+  // Watch the sentinel at the bottom of the list; once it is on screen, flag
+  // that another batch should be appended.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setLoadingMore(true);
+      },
+      { rootMargin: "300px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, visibleCount]);
+
+  // Append the next 10 games, keeping the loader on screen long enough to read.
+  useEffect(() => {
+    if (!loadingMore) return;
+    if (!hasMore) {
+      setLoadingMore(false);
+      return;
+    }
+    const id = setTimeout(() => {
+      setVisibleCount((c) => Math.min(c + GAMES_PAGE_SIZE, sortedGames.length));
+      setLoadingMore(false);
+    }, 350);
+    return () => clearTimeout(id);
+  }, [loadingMore, hasMore, sortedGames.length]);
+
   const leagueCounts = topLeagues.reduce<Record<string, number>>((acc, lg) => {
     acc[lg.id] = games.filter((g) => competitionInCategory(g.competition?.name, lg.id)).length;
     return acc;
   }, {});
+
+  // Categories with no games left are dropped from both the sidebar and the chip
+  // row, so the home page only ever offers leagues that actually have fixtures.
+  const visibleTopLeagues = topLeagues.filter((lg) => lg.id === activeLeague || (leagueCounts[lg.id] ?? 0) > 0);
 
   return (
     <div className="flex min-h-[calc(100vh-56px)]">
@@ -300,7 +353,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
               <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
                 {t("topLeagues")}
               </div>
-              {topLeagues.map((lg) => {
+              {visibleTopLeagues.map((lg) => {
                 const active = activeLeague === lg.id;
                 return (
                   <button
@@ -365,7 +418,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
       </aside>
 
       {/* Center Content */}
-      <div className="flex-1 min-w-0 bg-[#eef2f7] p-4 sm:p-4">
+      <div className="flex-1 min-w-0 overflow-x-hidden bg-[#eef2f7] p-3 pb-28 sm:p-4 sm:pb-28 md:pb-4">
         <div className="mx-auto max-w-[1100px] space-y-4">
           <>
           {/* Mobile hero (hidden on desktop) */}
@@ -438,6 +491,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             onSearchChange={setSearch}
             counts={leagueCounts}
             allCount={games.length}
+            hideEmpty
           />
 
           {/* Games */}
@@ -460,12 +514,17 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {sortedGames.map((game) => {
+              {visibleGames.map((game, gameIndex) => {
                 const countdown = timeRemaining(game.startTime);
+                // Zebra rows: white, then a light grey, then white again.
+                const zebra = gameIndex % 2 === 1;
                 return (
-                <div key={game.id} className="overflow-hidden rounded-xl bg-white shadow-sm border border-[#e2e8f0]">
+                <div
+                  key={game.id}
+                  className={`overflow-hidden rounded-2xl shadow-sm transition-shadow active:shadow-none sm:rounded-xl ${zebra ? "border border-[#cbd5e1] bg-[#e2e8f0]" : "border border-[#e2e8f0] bg-white"}`}
+                >
                   {/* Game header */}
-                  <div className="flex items-center justify-between bg-[#f8fafc] px-3 py-2 border-b border-[#e2e8f0]">
+                  <div className="flex items-center justify-between bg-transparent px-3 py-2 border-b border-[#e2e8f0]">
                     <div className="flex items-center gap-2">
                       {game.status === "LIVE" ? (
                         <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-[#ef4444]">
@@ -487,7 +546,12 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   </div>
 
                   {/* Teams face-off + countdown */}
-                  <div className="flex items-center justify-between gap-2 border-b border-[#e2e8f0] bg-gradient-to-b from-white to-[#f8fafc] px-4 py-4">
+                  {/* Teams face-off + countdown — tapping the card opens the game */}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/games/${game.id}`)}
+                    className="flex w-full items-center justify-between gap-2 border-b border-[#e2e8f0] bg-transparent px-4 py-4 text-left transition active:bg-black/[0.04]"
+                  >
                     <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
                       <TeamLogo name={game.homeTeam} className="size-14 sm:size-12" />
                       <span className="max-w-full truncate text-center text-xs font-bold text-[#0f172a]">{game.homeTeam}</span>
@@ -521,7 +585,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                       <TeamLogo name={game.awayTeam} className="size-14 sm:size-12" />
                       <span className="max-w-full truncate text-center text-xs font-bold text-[#0f172a]">{game.awayTeam}</span>
                     </div>
-                  </div>
+                  </button>
 
                   {/* Odds grid — Match Winner only, laid out home · draw · away */}
                   <div>
@@ -541,7 +605,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                         ];
                         return (
                           <div>
-                            <div className="grid grid-cols-3 bg-[#f8fafc] text-[10px] font-medium tracking-wider text-[#64748b]">
+                            <div className="grid grid-cols-3 border-b border-[#e2e8f0] bg-transparent text-[10px] font-medium tracking-wider text-[#64748b]">
                               <div className="px-2 py-1 text-center">1</div>
                               <div className="px-2 py-1 text-center">X</div>
                               <div className="px-2 py-1 text-center">2</div>
@@ -549,7 +613,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                             <div className="grid grid-cols-3 divide-x divide-[#e2e8f0]">
                               {cells.map(({ sel, label }, i) => {
                                 if (!sel) {
-                                  return <div key={i} className="bg-[#f8fafc] p-3 text-center text-xs text-[#cbd5e1]">—</div>;
+                                  return <div key={i} className="bg-transparent p-3 text-center text-xs text-[#cbd5e1]">—</div>;
                                 }
                                 const isSelected = slip.has(sel.id);
                                 return (
@@ -567,7 +631,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                                       })
                                     }
                                     className={`px-2 py-3 text-center transition ${
-                                      isSelected ? "bg-[#3b82f6] text-white" : "bg-white hover:bg-[#eff6ff] text-[#0f172a]"
+                                      isSelected ? "bg-[#3b82f6] text-white" : "bg-transparent hover:bg-[#eff6ff] text-[#0f172a]"
                                     }`}
                                   >
                                     <div className="text-sm font-bold">{Number(sel.odds).toFixed(2)}</div>
@@ -582,7 +646,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                   </div>
 
                   {/* Card footer: kickoff time + Details */}
-                  <div className="flex items-center justify-between border-t border-[#e2e8f0] bg-white px-3 py-2">
+                  <div className="flex items-center justify-between border-t border-[#e2e8f0] bg-transparent px-3 py-2">
                     <span className="flex items-center gap-1.5 text-[11px] text-[#64748b]">
                       <CalendarDays className="size-3.5" />
                       {new Date(game.startTime).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -597,6 +661,25 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                 </div>
               );
               })}
+            </div>
+          )}
+
+          {/* Progressive loader — appends the next 10 games, then stops at the end */}
+          {sortedGames.length > 0 && (
+            <div className="mt-3">
+              <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+              {loadingMore && (
+                <div className="grid place-items-center py-6" role="status" aria-live="polite">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/assets/custom/infinite-spinner.svg" alt="Loading more games" className="size-8" />
+                  <span className="mt-2 text-xs text-[#64748b]">Loading more games…</span>
+                </div>
+              )}
+              {!hasMore && visibleGames.length > GAMES_PAGE_SIZE && (
+                <p className="py-5 text-center text-xs text-[#94a3b8]">
+                  All {visibleGames.length} games loaded
+                </p>
+              )}
             </div>
           )}
           </div>
@@ -932,6 +1015,7 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
         onConfirm={confirmPlace}
       />
       <SignInPromptDialog open={promptOpen} onOpenChange={setPromptOpen} />
+      <MobileTabBar />
       <BetReceiptDialog
         open={!!placedReceipt}
         onOpenChange={(o) => { if (!o) setPlacedReceipt(null); }}

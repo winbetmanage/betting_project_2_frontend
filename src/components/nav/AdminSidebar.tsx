@@ -118,6 +118,8 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/fetch-games/bundesliga")) return "bundesliga";
   if (pathname.startsWith("/admin/fetch-games/serie-a")) return "serie-a";
   if (pathname.startsWith("/admin/fetch-games/ligue-1")) return "ligue-1";
+  if (pathname.startsWith("/admin/fetch-games/fa-cup")) return "fa-cup";
+  if (pathname.startsWith("/admin/fetch-games/efl-cup")) return "efl-cup";
   if (pathname.startsWith("/admin/results")) return "results";
   if (pathname.startsWith("/admin/information/games-list")) return "games-list";
   if (pathname.startsWith("/admin/information/markets")) return "markets";
@@ -297,6 +299,28 @@ export function AdminSidebar() {
                 >
                   <Trophy className="size-4" />
                   <span>Ligue 1</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/fa-cup" />}
+                  isActive={activeKey === "fa-cup"}
+                  tooltip="FA Cup"
+                  className={itemClass("fa-cup")}
+                >
+                  <Trophy className="size-4" />
+                  <span>FA Cup</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/admin/fetch-games/efl-cup" />}
+                  isActive={activeKey === "efl-cup"}
+                  tooltip="EFL Cup"
+                  className={itemClass("efl-cup")}
+                >
+                  <Trophy className="size-4" />
+                  <span>EFL Cup</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

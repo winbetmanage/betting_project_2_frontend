@@ -18,11 +18,13 @@ export type LeagueCategory = {
 
 export const LEAGUE_CATEGORIES: LeagueCategory[] = [
   { id: "epl", label: "English Premier League", short: "EPL", logo: "/assets/genenral_logos/premier-league.svg", match: ["premier", "epl"] },
+  { id: "champions", label: "UEFA Champions League", short: "Champions", logo: "/assets/genenral_logos/champions-league.svg", match: ["champions"] },
+  { id: "fa-cup", label: "FA Cup", short: "FA Cup", logo: "/assets/genenral_logos/fa-cup.svg", match: ["fa cup"] },
+  { id: "efl-cup", label: "EFL Cup", short: "EFL Cup", logo: "/assets/genenral_logos/efl-cup.svg", match: ["efl cup", "league cup"] },
   { id: "laliga", label: "Spain LaLiga", short: "LaLiga", logo: "/assets/team_logos/league-la-liga.svg", match: ["la liga", "laliga"] },
   { id: "serie-a", label: "Italian Serie A", short: "Serie A", logo: "/assets/team_logos/league-serie-a.svg", match: ["serie a", "serie-a"] },
   { id: "bundesliga", label: "Bundesliga", short: "Bundesliga", logo: "/assets/team_logos/league-bundesliga.svg", match: ["bundesliga"] },
   { id: "ligue-1", label: "France Ligue 1", short: "Ligue 1", logo: "/assets/team_logos/league-ligue-1.svg", match: ["ligue 1", "ligue-1", "ligue"] },
-  { id: "champions", label: "UEFA Champions League", short: "Champions", logo: "/assets/genenral_logos/champions-league.svg", match: ["champions"] },
 ];
 
 /** True when a competition name belongs to the given league category. */
@@ -45,6 +47,8 @@ export type LeagueFilterBarProps = {
   allCount?: number;
   /** Which leagues to show (defaults to all). */
   categories?: LeagueCategory[];
+  /** Hide categories that currently have 0 games (needs `counts`). */
+  hideEmpty?: boolean;
   className?: string;
 };
 
@@ -59,8 +63,10 @@ export function LeagueFilterBar({
   counts,
   allCount,
   categories = LEAGUE_CATEGORIES,
+  hideEmpty = false,
   className,
 }: LeagueFilterBarProps) {
+  const visible = hideEmpty && counts ? categories.filter((c) => c.id === active || (counts[c.id] ?? 0) > 0) : categories;
   return (
     <div className={className}>
       {/* Search */}
@@ -84,12 +90,12 @@ export function LeagueFilterBar({
         )}
       </div>
 
-      {/* League chips — wrap on small screens so there is never sideways scroll */}
-      <div className="mt-2.5 flex flex-wrap gap-2">
+      {/* League chips — centred, wrapping onto as many lines as needed, never scroll sideways */}
+      <div className="mt-2.5 flex flex-wrap justify-center gap-2">
         <button
           type="button"
           onClick={() => onActiveChange(null)}
-          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition active:scale-95 ${
             active === null ? "border-[#3b82f6] bg-[#3b82f6] text-white shadow-sm" : "border-[#e2e8f0] bg-white text-[#334155] hover:border-[#cbd5e1]"
           }`}
         >
@@ -98,7 +104,7 @@ export function LeagueFilterBar({
             <span className={`rounded-full px-1.5 text-[10px] ${active === null ? "bg-white/25" : "bg-[#eef2f7] text-[#64748b]"}`}>{allCount}</span>
           )}
         </button>
-        {categories.map((cat) => {
+        {visible.map((cat) => {
           const isActive = active === cat.id;
           const count = counts?.[cat.id];
           return (
@@ -107,11 +113,11 @@ export function LeagueFilterBar({
               type="button"
               onClick={() => onActiveChange(isActive ? null : cat.id)}
               title={cat.label}
-              className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border py-1.5 pl-1.5 pr-3.5 text-xs font-semibold transition active:scale-95 ${
                 isActive ? "border-[#3b82f6] bg-[#eff6ff] text-[#1d4ed8] shadow-sm" : "border-[#e2e8f0] bg-white text-[#334155] hover:border-[#cbd5e1]"
               }`}
             >
-              <span className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-[#e2e8f0]">
+              <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-[#e2e8f0]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cat.logo} alt={cat.label} className="size-4 object-contain" />
               </span>

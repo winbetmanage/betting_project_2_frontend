@@ -19,6 +19,7 @@ import Link from "next/link";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { Activity, Search, X, Trophy, Clock, Eye, AlertTriangle, Trash2, CheckCircle2, XCircle, Flag, RefreshCw, CheckSquare, SlidersHorizontal, Download, Wand2 } from "lucide-react";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
+import { LEAGUE_CATEGORIES, competitionInCategory } from "@/components/games/LeagueFilter";
 
 type BulkFetchItem = { gameId: string; label: string; ok: boolean; stored?: number; attempts: number; error?: string };
 type BulkFillItem = { gameId: string; label: string; marketsFilled: number; marketsFailed: number; skipped: number; failures: { marketKey: string; point: number | null; message: string }[]; error?: string };
@@ -60,6 +61,7 @@ export default function ActiveGamesPage() {
   const [limit, setLimit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState<Game | null>(null);
@@ -140,9 +142,11 @@ export default function ActiveGamesPage() {
 
   const upcomingGames = allGames
     .filter(isUpcoming)
+    .filter((g) => category === "ALL" || competitionInCategory(g.competition?.name, category))
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const passedGames = allGames
     .filter((g) => !isUpcoming(g))
+    .filter((g) => category === "ALL" || competitionInCategory(g.competition?.name, category))
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   const tabGames = tab === "upcoming" ? upcomingGames : passedGames;
 
@@ -154,7 +158,7 @@ export default function ActiveGamesPage() {
     if (cur !== page) setPage(cur);
     setGames(tabGames.slice((cur - 1) * limit, cur * limit));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGames, tab, page, limit, now]);
+  }, [allGames, tab, page, limit, now, category]);
 
   const switchTab = (v: string) => {
     setTab(v as "upcoming" | "passed");
@@ -423,7 +427,26 @@ export default function ActiveGamesPage() {
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <Select value={category} onValueChange={(v) => { setCategory(v ?? "ALL"); setPage(1); }}>
+              <SelectTrigger className="h-9 w-full sm:w-[190px]" title="Filter games by competition">
+                <SelectValue placeholder="All competitions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All competitions</SelectItem>
+                {LEAGUE_CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.logo} alt={c.label} className="size-3.5 object-contain" />
+                      </span>
+                      {c.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant={advanced ? "default" : "outline"}
                 size="sm"
@@ -537,11 +560,11 @@ export default function ActiveGamesPage() {
             </div>
           ) : (
             <>
-              <div className="hidden overflow-x-auto md:block">
-                <Table>
+              <div className="hidden md:block">
+                <Table className="table-fixed">
                   <TableHeader className="bg-primary">
                     <TableRow className="hover:bg-primary border-primary">
-                      <TableHead className="text-white text-xs tracking-widest w-10">
+                      <TableHead className="w-[36px] text-white text-xs tracking-widest">
                         <input
                           type="checkbox"
                           checked={advanced ? allVisibleAdvSelected : allDeletableSelected}
@@ -556,14 +579,14 @@ export default function ActiveGamesPage() {
                           aria-label={advanced ? "Select all games" : "Select all deletable games"}
                         />
                       </TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">MATCH</TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">COMPETITION</TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">START</TableHead>
-                      <TableHead className="text-center text-white text-xs tracking-widest">SCORE</TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">STATUS</TableHead>
-                      <TableHead className="text-center text-white text-xs tracking-widest">APIS</TableHead>
-                      <TableHead className="text-white text-xs tracking-widest">PUBLISHED</TableHead>
-                      <TableHead className="text-white text-xs tracking-widest text-right">ACTIONS</TableHead>
+                      <TableHead className="w-[24%] text-white text-xs tracking-widest">MATCH</TableHead>
+                      <TableHead className="w-[17%] text-white text-xs tracking-widest">COMPETITION</TableHead>
+                      <TableHead className="w-[9%] text-white text-xs tracking-widest">START</TableHead>
+                      <TableHead className="w-[7%] text-center text-white text-xs tracking-widest">SCORE</TableHead>
+                      <TableHead className="w-[11%] text-white text-xs tracking-widest">STATUS</TableHead>
+                      <TableHead className="w-[8%] text-center text-white text-xs tracking-widest">APIS</TableHead>
+                      <TableHead className="w-[11%] text-white text-xs tracking-widest">PUBLISHED</TableHead>
+                      <TableHead className="w-[9%] text-white text-xs tracking-widest text-right">ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -600,18 +623,29 @@ export default function ActiveGamesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <TeamLogo name={g.homeTeam} className="size-6" />
-                            <div className="font-medium text-sm truncate max-w-[150px]">{g.homeTeam}</div>
+                            <TeamLogo name={g.homeTeam} className="size-6 shrink-0" />
+                            <div className="truncate text-sm font-medium">{g.homeTeam}</div>
                           </div>
-                          <div className="my-0.5 text-[10px] text-muted-foreground pl-8">vs</div>
+                          <div className="my-0.5 pl-8 text-[10px] text-muted-foreground">vs</div>
                           <div className="flex items-center gap-2">
-                            <TeamLogo name={g.awayTeam} className="size-6" />
-                            <div className="font-medium text-sm truncate max-w-[150px]">{g.awayTeam}</div>
+                            <TeamLogo name={g.awayTeam} className="size-6 shrink-0" />
+                            <div className="truncate text-sm font-medium">{g.awayTeam}</div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground font-mono mt-1">{g.externalEventId?.slice(0, 8) ?? g.id.slice(0, 8)}…</div>
+                          <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{g.externalEventId?.slice(0, 8) ?? g.id.slice(0, 8)}…</div>
                         </TableCell>
-                        <TableCell className="text-sm"><span className="flex items-center gap-1.5"><LeagueLogo league={g.competition?.name} className="size-4" /><span>{g.competition?.name ?? "—"}</span></span> <span className="text-xs text-muted-foreground">({g.competition?.sport?.name ?? "—"})</span></TableCell>
-                        <TableCell className="text-xs font-mono">{new Date(g.startTime).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <LeagueLogo league={g.competition?.name} className="size-4 shrink-0" />
+                            <span className="truncate text-sm">{g.competition?.name ?? "—"}</span>
+                          </div>
+                          <div className="truncate pl-6 text-xs text-muted-foreground">{g.competition?.sport?.name ?? "—"}</div>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="font-medium">{new Date(g.startTime).toLocaleDateString()}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {new Date(g.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-center">
                           {(() => {
                             const s = g.score;
@@ -646,7 +680,7 @@ export default function ActiveGamesPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Switch checked={g.isPublished} onCheckedChange={() => setPendingToggle(g)} />
-                            <span className="text-xs">{g.isPublished ? "Yes" : "No"}</span>
+                            <span className="hidden text-xs xl:inline">{g.isPublished ? "Yes" : "No"}</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
