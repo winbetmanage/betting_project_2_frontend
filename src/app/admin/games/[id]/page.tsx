@@ -15,16 +15,19 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Trophy, Clock, Calendar, Hash, Globe, Building, Check, X, Activity, Download, AlertTriangle, Shield, Trash2, Wand2, RefreshCw, BookOpen } from "lucide-react";
+import { ArrowLeft, Trophy, Clock, Calendar, Hash, Globe, Building, Check, X, Activity, Download, AlertTriangle, Shield, Trash2, Wand2, RefreshCw, BookOpen, ArrowRightLeft, Users, Eye, EyeOff, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TeamLogo, LeagueLogo } from "@/components/TeamLogo";
 import { GameApiInfo } from "@/components/admin/GameApiInfo";
 import { GameApiLinkEditor } from "@/components/admin/GameApiLinkEditor";
+import ReplaceMarketDialog from "@/components/admin/ReplaceMarketDialog";
+import AutoReplaceDialog from "@/components/admin/AutoReplaceDialog";
+import SyncTicketsDialog from "@/components/admin/SyncTicketsDialog";
 import { orderMarkets } from "@/lib/marketOrder";
 
 type Selection = { id: string; name: string; odds: number | string; isWinning: boolean | null };
-type Market = { id: string; name: string; type: string; status: string; selections: Selection[]; sourceBookmakerKeys?: string[] | null };
+type Market = { id: string; name: string; type: string; status: string; selections: Selection[]; sourceBookmakerKeys?: string[] | null; parameters?: { replacedByMarketId?: string; line?: number | null; marketKey?: string } | null };
 type Game = {
   id: string;
   homeTeam: string;
@@ -623,6 +626,12 @@ export default function GameDetailsPage() {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Market | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<Market | null>(null);
+  const [autoReplaceOpen, setAutoReplaceOpen] = useState(false);
+  const [syncTicketsOpen, setSyncTicketsOpen] = useState(false);
+  const [hideTarget, setHideTarget] = useState<Market | null>(null);
+  const [hideOpen, setHideOpen] = useState(false);
+  const [hideBusy, setHideBusy] = useState(false);
 
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 30000);
@@ -679,6 +688,24 @@ export default function GameDetailsPage() {
   const reloadGame = () => {
     const token = getAccessToken();
     api.get<{ data: Game }>(`/games/${id}`, token).then((res) => setGame(res.data)).catch(() => {});
+  };
+
+  const handleToggleHidden = async () => {
+    if (!hideTarget) return;
+    const token = getAccessToken();
+    const hide = hideTarget.status !== "SUSPENDED";
+    setHideBusy(true);
+    try {
+      const res = await api.patch<{ message: string }>(`/markets/${hideTarget.id}/visibility`, { hidden: hide }, token);
+      toast.success(res.message);
+      setHideOpen(false);
+      setHideTarget(null);
+      reloadGame();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to change visibility");
+    } finally {
+      setHideBusy(false);
+    }
   };
 
   if (loading) {
@@ -917,13 +944,37 @@ export default function GameDetailsPage() {
 
       <Card className="border-border bg-card shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="size-5 text-primary" /> Markets
-            <Badge variant="secondary" className="ml-2 bg-primary/15 text-primary">
-              {game.markets.length}
-            </Badge>
-          </CardTitle>
-          <CardDescription>Odds markets for this game — fetch from bookmakers, select source, approve</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="size-5 text-primary" /> Markets
+                <Badge variant="secondary" className="ml-2 bg-primary/15 text-primary">
+                  {game.markets.length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>Odds markets for this game — fetch from bookmakers, select source, approve</CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setSyncTicketsOpen(true)}
+                disabled={!game.externalEventId || game.markets.length === 0}
+                variant="outline"
+                className="gap-1"
+                title="Push the corrected club names from the fetched odds onto every ticket already placed on this game, with an option to also update the odds"
+              >
+                <Users className="size-4" /> Update Bet Tickets
+              </Button>
+              <Button
+                onClick={() => setAutoReplaceOpen(true)}
+                disabled={!game.externalEventId || game.markets.length === 0}
+                variant="outline"
+                className="gap-1 border-secondary/40 text-secondary hover:bg-secondary/10"
+                title="Rebuild every market nobody has bet on from the fetched odds — same bookmaker if it still offers it, otherwise the first bookmaker of the list"
+              >
+                <Wand2 className="size-4" /> Auto Replace Un-Bet
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {game.markets.length === 0 ? (
@@ -932,16 +983,31 @@ export default function GameDetailsPage() {
             <Accordion type="multiple" className="divide-y divide-border">
               {orderMarkets(game.markets).map((m) => {
                 const sources = Array.isArray(m.sourceBookmakerKeys) ? m.sourceBookmakerKeys.filter((k): k is string => typeof k === "string") : [];
+                const replaced = typeof m.parameters?.replacedByMarketId === "string";
+                const hidden = m.status === "SUSPENDED";
+                const locked = m.status === "SETTLED" || m.status === "CANCELLED";
                 return (
                 <AccordionItem key={m.id} value={m.id}>
                   <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">
                     <div className="flex w-full flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">{m.name}</span>
+                        <span className={replaced || hidden ? "text-muted-foreground" : "font-semibold"}>{m.name}</span>
                         <Badge variant="outline" className="text-xs">
                           {m.type}
                         </Badge>
-                        <Badge className={m.status === "OPEN" ? "bg-secondary text-white" : "bg-muted"}>{m.status}</Badge>
+                        <Badge className={m.status === "OPEN" ? "bg-secondary text-white" : "bg-muted"}>
+                          {hidden ? "Hidden" : m.status.charAt(0) + m.status.slice(1).toLowerCase()}
+                        </Badge>
+                        {replaced && (
+                          <Badge variant="outline" className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-600" title={`Replaced by market ${m.parameters?.replacedByMarketId}`}>
+                            <ArrowRightLeft className="size-3" /> Replaced
+                          </Badge>
+                        )}
+                        {hidden && (
+                          <Badge variant="outline" className="gap-1" title="Not in the players' betting list and no new bets accepted. Existing bets are untouched.">
+                            <EyeOff className="size-3" /> not listed
+                          </Badge>
+                        )}
                         {sources.length > 0 && (
                           <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/10 text-[10px] text-primary" title={sources.join(", ")}>
                             <BookOpen className="size-3" /> {sources[0]}
@@ -951,9 +1017,38 @@ export default function GameDetailsPage() {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{m.selections.length} selections</span>
+                        {!locked && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            title={hidden ? "Put this market back in the players' betting list" : "Hide from the players' betting list — existing bets stay exactly as they are"}
+                            onClick={(e) => { e.stopPropagation(); setHideTarget(m); setHideOpen(true); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setHideTarget(m); setHideOpen(true); } }}
+                            className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs ${
+                              hidden
+                                ? "border-secondary/40 text-secondary hover:bg-secondary/10"
+                                : "border-border text-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />} {hidden ? "Show" : "Hide"}
+                          </span>
+                        )}
+                        {m.status !== "SETTLED" && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            title="Swap this market for the same market from another bookmaker or line, and move every bet on it across"
+                            onClick={(e) => { e.stopPropagation(); setReplaceTarget(m); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setReplaceTarget(m); } }}
+                            className="flex items-center gap-1 rounded-md border border-primary/30 px-1.5 py-0.5 text-xs text-primary hover:bg-primary/10"
+                          >
+                            <ArrowRightLeft className="size-3" /> Replace
+                          </span>
+                        )}
                         <span
                           role="button"
                           tabIndex={0}
+                          title="Only works while nobody has bet on this market"
                           onClick={(e) => { e.stopPropagation(); setRemoveTarget(m); setRemoveOpen(true); }}
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setRemoveTarget(m); setRemoveOpen(true); } }}
                           className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-destructive border border-destructive/30 hover:bg-destructive/10"
@@ -964,6 +1059,18 @@ export default function GameDetailsPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
+                    {hidden && (
+                      <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                        <EyeOff className="size-3.5" /> Hidden from players. No new bets can be placed on it; everyone who
+                        already bet keeps their ticket and it still settles normally.
+                      </div>
+                    )}
+                    {replaced && (
+                      <div className="mb-2 flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300">
+                        <ArrowRightLeft className="size-3.5" /> Cancelled and kept for the record. Its bets were moved to the
+                        replacement market; voided legs still point here.
+                      </div>
+                    )}
                     {sources.length > 0 && (
                       <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <BookOpen className="size-3.5" /> Source bookmaker{sources.length > 1 ? "s" : ""}: <span className="font-mono text-foreground">{sources.join(", ")}</span>
@@ -1026,6 +1133,7 @@ export default function GameDetailsPage() {
             </DialogTitle>
             <DialogDescription>
               Remove <span className="font-mono font-semibold">{removeTarget?.name}</span>? Its selections and odds history will be deleted.
+              If anybody has already bet on this market, use <span className="font-semibold">Replace</span> instead — that moves the bets across instead of failing.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1038,6 +1146,115 @@ export default function GameDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hide / show market confirmation */}
+      <Dialog open={hideOpen} onOpenChange={setHideOpen}>
+        <DialogContent className="sm:max-w-[460px] bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {hideTarget?.status === "SUSPENDED" ? (
+                <>
+                  <Eye className="size-5 text-secondary" /> Put Back on the Betting List?
+                </>
+              ) : (
+                <>
+                  <EyeOff className="size-5 text-amber-500" /> Hide From Players?
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {hideTarget?.status === "SUSPENDED" ? (
+                <>
+                  <span className="font-mono font-semibold">{hideTarget?.name}</span> becomes visible again and starts
+                  accepting bets.
+                </>
+              ) : (
+                <>
+                  <span className="font-mono font-semibold">{hideTarget?.name}</span> will disappear from the players&apos;
+                  betting list and stop accepting new bets.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {hideTarget?.status !== "SUSPENDED" ? (
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <Shield className="mt-0.5 size-3.5 shrink-0 text-secondary" />
+                <span>
+                  <span className="font-semibold text-foreground">Everybody who already bet is untouched.</span> Their tickets
+                  keep the selection they paid for, the names and odds stay as recorded, and the market still settles with the
+                  rest of the game.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  Anyone with it in their open bet slip will be refused at placement with &quot;market is not
+                  open&quot; — that is the same guard that stops bets on a suspended market.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  While hidden it drops out of the scheduled odds refresh, so its prices freeze. Press Show to put it back
+                  exactly as it is — the next scheduled run picks it up again.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <Info className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Existing tickets are unaffected — they were never released. The scheduled odds refresh picks this market back
+                up on its next run.
+              </span>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHideOpen(false)} disabled={hideBusy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleToggleHidden}
+              disabled={hideBusy}
+              className={hideTarget?.status === "SUSPENDED" ? "bg-primary gap-1" : "bg-amber-600 hover:bg-amber-700 gap-1"}
+            >
+              {hideBusy ? "Saving..." : hideTarget?.status === "SUSPENDED" ? (
+                <>
+                  <Eye className="size-4" /> Show again
+                </>
+              ) : (
+                <>
+                  <EyeOff className="size-4" /> Hide
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ReplaceMarketDialog
+        open={!!replaceTarget}
+        onOpenChange={(next) => {
+          if (!next) setReplaceTarget(null);
+        }}
+        marketId={replaceTarget?.id ?? null}
+        onReplaced={reloadGame}
+      />
+
+      <AutoReplaceDialog
+        open={autoReplaceOpen}
+        onOpenChange={setAutoReplaceOpen}
+        gameId={game.id}
+        onDone={reloadGame}
+      />
+
+      <SyncTicketsDialog
+        open={syncTicketsOpen}
+        onOpenChange={setSyncTicketsOpen}
+        gameId={game.id}
+        onDone={reloadGame}
+      />
     </div>
   );
 }

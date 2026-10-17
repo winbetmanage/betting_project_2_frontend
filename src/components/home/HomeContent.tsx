@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 import { BetReceiptDialog, buildReceipt, type ReceiptData } from "@/components/bets/BetReceipt";
 import { SignInPromptDialog } from "@/components/auth/SignInPrompt";
 import { timeRemaining, isBettingWindowOpen } from "@/lib/timeRemaining";
+import { findMatchWinnerMarket } from "@/lib/marketOrder";
 import { LeagueFilterBar, competitionInCategory } from "@/components/games/LeagueFilter";
 import {
   Monitor,
@@ -176,32 +177,63 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const token = getAccessToken();
-    Promise.all([
-      api.get<{ data: Sport[] }>("/sports").then((r) => r.data).catch(() => []),
-      api.get<{ data: Game[] }>("/games?include=markets&isPublished=true", token).then((r) => r.data).catch(() => []),
-    ])
-      .then(([s, g]) => {
-        setSports(s ?? []);
-        // Only show published games that have an open H2H (match winner) market to bet on
-        setGames(
-          (g ?? [])
-            .filter(
-              (gm) =>
-                ["SCHEDULED", "LIVE", "SUSPENDED"].includes(gm.status) &&
-                (gm.markets ?? []).some((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0)
-            )
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        );
-      })
-      .finally(() => setLoading(false));
-
-    api
-      .get<{ data: ResultGame[] }>("/games/results?limit=10")
-      .then((r) => setResults(r.data ?? []))
-      .catch(() => setResults([]));
+  const loadSports = useCallback(() => {
+    return api
+      .get<{ data: Sport[] }>("/sports")
+      .then((r) => r.data ?? [])
+      .catch(() => []);
   }, []);
+
+  const loadGames = useCallback(() => {
+    const token = getAccessToken();
+    return api
+      .get<{ data: Game[] }>("/games?include=markets&isPublished=true", token)
+      .then((r) => r.data ?? [])
+      .catch(() => []);
+  }, []);
+
+  const loadResults = useCallback(() => {
+    return api
+      .get<{ data: ResultGame[] }>("/games/results?limit=10")
+      .then((r) => r.data ?? [])
+      .catch(() => []);
+  }, []);
+
+  const loadGamesAndSports = useCallback(() => {
+    setLoading(true);
+    Promise.all([loadSports(), loadGames()]).then(([s, g]) => {
+      setSports(s);
+      // Only show published games that have an open 1X2 market to bet on. The
+      // same resolver picks the market the game's detail page leads with, so a
+      // card's prices always belong to the market it links to.
+      setGames(
+        g
+          .filter((gm) => ["SCHEDULED", "LIVE", "SUSPENDED"].includes(gm.status) && findMatchWinnerMarket(gm.markets ?? []) !== null)
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      );
+    }).finally(() => setLoading(false));
+  }, [loadSports, loadGames]);
+
+  useEffect(() => {
+    loadGamesAndSports();
+    loadResults().then(setResults);
+  }, [loadGamesAndSports, loadResults]);
+
+  // The odds api refresh runs on a schedule, so the prices on a card go stale
+  // while the tab sits open. The detail page is fetched on every visit, which
+  // is why the two could disagree — refetch whenever the player comes back to
+  // this tab so the card, the detail page and the bet slip all agree.
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === "visible") loadGamesAndSports();
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    return () => {
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
+    };
+  }, [loadGamesAndSports]);
 
   // First-deposit bonus banner: only for signed-in accounts that never had an
   // approved deposit (firstTimeDeposit === false), using the live bonus policy.
@@ -595,13 +627,16 @@ function BetLabDashboard({ isGuest }: { isGuest: boolean }) {
                           <span className="text-[11px] text-[#94a3b8]">{t("kickoff15")}</span>
                         </div>
                       ) : (() => {
-                        const mw = (game.markets ?? []).find((m) => m.type === "MATCH_WINNER" && m.status === "OPEN" && m.selections?.length > 0);
+                        const mw = findMatchWinnerMarket(game.markets ?? []);
                         if (!mw) return <div className="grid place-items-center p-6 text-xs text-[#94a3b8]">{t("bettingUnavailable")}</div>;
                         const [home, draw, away] = orderMatchWinner(mw.selections, game.homeTeam, game.awayTeam);
+                        // Label each cell with the selection's OWN name — the same
+                        // label the detail page shows — so a price can never sit
+                        // under the wrong club if the api's names are off.
                         const cells: { sel: Selection | null; label: string }[] = [
-                          { sel: home, label: game.homeTeam },
-                          { sel: draw, label: "Draw" },
-                          { sel: away, label: game.awayTeam },
+                          { sel: home, label: home?.name || game.homeTeam },
+                          { sel: draw, label: draw?.name || "Draw" },
+                          { sel: away, label: away?.name || game.awayTeam },
                         ];
                         return (
                           <div>
