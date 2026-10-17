@@ -34,6 +34,7 @@ import {
   Bell,
   UserX,
   ScrollText,
+  History,
 } from "lucide-react";
 
 import {
@@ -62,6 +63,7 @@ const manageItems = [
   { key: "games", title: "Games", url: "/admin/games", icon: Trophy },
   { key: "bets", title: "Bets", url: "/admin/bets", icon: Ticket },
   { key: "bet-games", title: "Bet Games", url: "/admin/bet-games", icon: ReceiptText },
+  { key: "finished-bet-games", title: "Finished Bet Games", url: "/admin/finished-bet-games", icon: History },
   { key: "active-games", title: "Active Games", url: "/admin/games/active", icon: Activity },
   { key: "ended-games", title: "Ended Games", url: "/admin/games/ended", icon: Flag },
   { key: "staged-games", title: "Staged Games", url: "/admin/fetch-games/staged", icon: Layers },
@@ -102,6 +104,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/admin/games/ended")) return "ended-games";
   if (/^\/admin\/games\/[^/]+$/.test(pathname)) return "active-games"; // game detail page
   if (pathname.startsWith("/admin/games")) return "games";
+  if (pathname.startsWith("/admin/finished-bet-games")) return "finished-bet-games";
   if (pathname.startsWith("/admin/bet-games")) return "bet-games";
   if (pathname.startsWith("/admin/bets")) return "bets";
   if (pathname.startsWith("/admin/users/devices")) return "devices";
