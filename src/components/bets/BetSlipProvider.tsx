@@ -37,6 +37,10 @@ type SlipContextValue = {
   placing: boolean;
   /** Floor for one ticket's stake, from admin settings (default 10). */
   minStake: number;
+  /** Max selections per ticket across all games, from admin settings (default 30). */
+  maxLegs: number;
+  /** Max selections from one game on a ticket, from admin settings (default 2). */
+  maxMarketsPerGame: number;
   /** Places the whole slip as one ticket (server derives SINGLE vs MULTIPLE). */
   place: () => Promise<{ betId?: string; error?: string }>;
 };
@@ -53,6 +57,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const t = useTranslations("home");
   const [legs, setLegs] = useState<SlipLeg[]>([]);
   const [maxLegs, setMaxLegs] = useState(30);
+  const [maxMarketsPerGame, setMaxMarketsPerGame] = useState(MAX_MARKETS_PER_GAME);
   const [minStake, setMinStake] = useState(10);
   const [stake, setStake] = useState("10");
   const [placing, setPlacing] = useState(false);
@@ -61,10 +66,12 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getAccessToken();
     api
-      .get<{ data: { maxLegs?: number | null; minStake?: number | null } }>("/settings/public", token ?? undefined)
+      .get<{ data: { maxLegs?: number | null; maxMarketsPerGame?: number | null; minStake?: number | null } }>("/settings/public", token ?? undefined)
       .then((r) => {
         const v = Number(r.data?.maxLegs);
         if (Number.isFinite(v) && v >= 1) setMaxLegs(Math.floor(v));
+        const g = Number(r.data?.maxMarketsPerGame);
+        if (Number.isFinite(g) && g >= 1) setMaxMarketsPerGame(Math.floor(g));
         const m = Number(r.data?.minStake);
         if (Number.isFinite(m) && m >= 1) setMinStake(m);
       })
@@ -111,14 +118,14 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       const picksForGame = legs.filter((l) => l.gameId === leg.gameId).length;
-      if (picksForGame >= MAX_MARKETS_PER_GAME) {
-        toast.error(t("maxTwoPerGame", { game: leg.gameLabel }));
+      if (picksForGame >= maxMarketsPerGame) {
+        toast.error(t("maxPerGame", { n: maxMarketsPerGame, game: leg.gameLabel }));
         return false;
       }
       setLegs((prev) => [...prev, leg]);
       return true;
     },
-    [legs, maxLegs, t]
+    [legs, maxLegs, maxMarketsPerGame, t]
   );
 
   const remove = useCallback((selectionId: string) => setLegs((prev) => prev.filter((l) => l.selectionId !== selectionId)), []);
@@ -154,8 +161,8 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       acc[l.gameId] = { count: (acc[l.gameId]?.count ?? 0) + 1, label: l.gameLabel };
       return acc;
     }, {});
-    const violating = Object.values(overLimitGame).find((g) => g.count > MAX_MARKETS_PER_GAME);
-    if (violating) return { error: t("maxTwoPerGame", { game: violating.label }) };
+    const violating = Object.values(overLimitGame).find((g) => g.count > maxMarketsPerGame);
+    if (violating) return { error: t("maxPerGame", { n: maxMarketsPerGame, game: violating.label }) };
     if (Number(stake) <= 0) return { error: t("enterStakePositive") };
     if (Number(stake) < minStake) return { error: t("minStake", { amount: minStake.toLocaleString("en-US") }) };
     setPlacing(true);
@@ -172,11 +179,11 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setPlacing(false);
     }
-  }, [legs, stake, minStake, clear, t]);
+  }, [legs, stake, minStake, maxMarketsPerGame, clear, t]);
 
   const value = useMemo<SlipContextValue>(
-    () => ({ legs, stake, setStake, has, add, remove, toggle, clear, count: legs.length, totalOdds, potentialPayout, placing, minStake, place }),
-    [legs, stake, has, add, remove, toggle, clear, totalOdds, potentialPayout, placing, minStake, place]
+    () => ({ legs, stake, setStake, has, add, remove, toggle, clear, count: legs.length, totalOdds, potentialPayout, placing, minStake, maxLegs, maxMarketsPerGame, place }),
+    [legs, stake, has, add, remove, toggle, clear, totalOdds, potentialPayout, placing, minStake, maxLegs, maxMarketsPerGame, place]
   );
 
   return <SlipContext.Provider value={value}>{children}</SlipContext.Provider>;

@@ -246,7 +246,9 @@ export default function GameDetailPage() {
                 ))}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-white/40">{t("tapToAdd")}</p>
+              <p className="mt-3 text-sm text-white/40">
+                {t("tapToAdd", { max: slip.maxMarketsPerGame, legs: slip.maxLegs })}
+              </p>
             )}
           </div>
         </>

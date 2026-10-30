@@ -81,12 +81,12 @@ export default function BetGamesList({ finishedOnly = false }: { finishedOnly?: 
   const heading = finishedOnly ? "Finished Bet Games" : "Bet Games";
   const blurb = finishedOnly
     ? "Finished games and their settled betting activity — newest result first. Open a game to review its bets and payouts."
-    : "Published games and their betting activity — open a game to review bets and settle payouts.";
-  const cardTitle = finishedOnly ? "Finished games" : "Published games";
-  const emptyTitle = finishedOnly ? "No finished games" : "No published games";
+    : "Upcoming and live games with their betting activity — live games first, then the closest kickoff. Open a game to review bets and settle payouts.";
+  const cardTitle = finishedOnly ? "Finished games" : "Upcoming & live games";
+  const emptyTitle = finishedOnly ? "No finished games" : "No upcoming or live games";
   const emptyHint = finishedOnly
     ? "A game lands here once the result sync marks it finished."
-    : "Publish a game to see its betting activity here.";
+    : "Published games stay here until they finish; completed games move to Finished Bet Games.";
 
   useEffect(() => {
     setToken(getAccessToken());
@@ -95,7 +95,7 @@ export default function BetGamesList({ finishedOnly = false }: { finishedOnly?: 
   const load = async () => {
     setLoading(true);
     try {
-      const url = finishedOnly ? "/games/settlement-list?finished=true" : "/games/settlement-list";
+      const url = finishedOnly ? "/games/settlement-list?finished=true" : "/games/settlement-list?active=true";
       const res = await api.get<{ data: BetGame[] }>(url, getAccessToken() ?? token);
       setGames(res.data ?? []);
     } catch (e) {
@@ -112,11 +112,19 @@ export default function BetGamesList({ finishedOnly = false }: { finishedOnly?: 
   }, [token, finishedOnly]);
 
   const q = search.trim().toLowerCase();
-  // Most recently finished to the top (kickoff time, newest first).
-  const filtered = (q
+  const LIVE_STATUSES = new Set(["LIVE", "SUSPENDED"]);
+  const filtered = [...(q
     ? games.filter((g) => `${g.homeTeam} ${g.awayTeam} ${g.competition?.name ?? ""}`.toLowerCase().includes(q))
     : games
-  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  )].sort((a, b) => {
+    // Finished view: most recently finished (kickoff time) first.
+    if (finishedOnly) return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+    // Active view: live games first, then upcoming games by closest kickoff.
+    const aLive = LIVE_STATUSES.has(a.status) ? 0 : 1;
+    const bLive = LIVE_STATUSES.has(b.status) ? 0 : 1;
+    if (aLive !== bLive) return aLive - bLive;
+    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
