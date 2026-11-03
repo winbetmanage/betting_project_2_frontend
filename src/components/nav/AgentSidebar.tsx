@@ -9,6 +9,7 @@ import {
   Users,
   Bell,
   Briefcase,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -32,6 +33,7 @@ const mainItems = [
   { key: "dashboard", title: "Dashboard", url: "/agent", icon: LayoutDashboard },
   { key: "referral-link", title: "Referral Link", url: "/agent#referral-link", icon: Link2 },
   { key: "referred-users", title: "Referred Users", url: "/agent#referred-users", icon: Users },
+  { key: "transactions", title: "Transactions", url: "/agent/transactions", icon: Wallet },
   { key: "activity", title: "Activity", url: "/agent/activity", icon: Bell },
 ];
 
@@ -50,9 +52,11 @@ export function AgentSidebar() {
   const activeKey =
     pathname === "/agent" || pathname === "/agent/"
       ? (hash && hash !== "dashboard" ? hash : "dashboard")
-      : pathname.startsWith("/agent/activity")
-        ? "activity"
-        : "dashboard";
+      : pathname.startsWith("/agent/transactions")
+        ? "transactions"
+        : pathname.startsWith("/agent/activity")
+          ? "activity"
+          : "dashboard";
 
   const itemClass = (key: string) =>
     activeKey === key
